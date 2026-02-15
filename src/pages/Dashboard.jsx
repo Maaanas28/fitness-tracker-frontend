@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   Home, Dumbbell, Apple, TrendingUp, User, LogOut, 
-  Target, Flame, Droplet, Calendar, Trophy, ChevronRight
+  Target, Flame, Droplet, Calendar, Trophy, ChevronRight, Play
 } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
@@ -45,19 +45,31 @@ function Dashboard() {
             <Home size={20} />
             {sidebarOpen && <span>Dashboard</span>}
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors">
+          <button 
+            onClick={() => navigate('/workout')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+          >
             <Dumbbell size={20} />
             {sidebarOpen && <span>Workout Tracker</span>}
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors">
+          <button 
+            onClick={() => navigate('/diet')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+          >
             <Apple size={20} />
             {sidebarOpen && <span>Diet Tracker</span>}
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors">
+          <button 
+            onClick={() => navigate('/progress')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+          >
             <TrendingUp size={20} />
             {sidebarOpen && <span>Progress</span>}
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors">
+          <button 
+            onClick={() => navigate('/profile')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+          >
             <User size={20} />
             {sidebarOpen && <span>Profile</span>}
           </button>
@@ -113,7 +125,10 @@ function Dashboard() {
           </div>
 
           {/* Water Card */}
-          <div className="bg-gray-800 p-6 rounded-xl">
+          <button 
+            onClick={() => navigate('/water')}
+            className="bg-gray-800 p-6 rounded-xl hover:bg-gray-750 transition-colors text-left w-full"
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="bg-blue-500/20 p-3 rounded-lg">
                 <Droplet className="text-blue-500" size={24} />
@@ -123,7 +138,7 @@ function Dashboard() {
             <h3 className="text-gray-400 text-sm font-medium">Water Intake</h3>
             <p className="text-3xl font-bold text-white mt-1">6 / 8</p>
             <p className="text-gray-500 text-sm mt-1">glasses</p>
-          </div>
+          </button>
 
           {/* Streak Card */}
           <div className="bg-gray-800 p-6 rounded-xl">
@@ -176,30 +191,47 @@ function Dashboard() {
         {/* Quick Actions */}
         <div className="p-6">
           <h3 className="text-xl font-bold text-white mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <button className="bg-gray-800 p-4 rounded-xl flex items-center justify-between hover:bg-gray-700 transition-colors group">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <button 
+              onClick={() => navigate('/workout-plan')}
+              className="bg-gray-800 p-4 rounded-xl flex items-center justify-between hover:bg-gray-700 transition-colors group"
+            >
               <div className="flex items-center gap-3">
                 <Calendar className="text-lime-500" size={24} />
-                <span className="text-white font-semibold">Generate Workout Plan</span>
+                <span className="text-white font-semibold">Workout Plan</span>
               </div>
               <ChevronRight className="text-gray-400 group-hover:text-white transition-colors" size={20} />
             </button>
 
-             <button 
-  onClick={() => navigate('/calculator')}
-  className="bg-gray-800 p-4 rounded-xl flex items-center justify-between hover:bg-gray-700 transition-colors group"
->
-  <div className="flex items-center gap-3">
-    <Target className="text-orange-500" size={24} />
-    <span className="text-white font-semibold">Calculate BMI</span>
-  </div>
-  <ChevronRight className="text-gray-400 group-hover:text-white transition-colors" size={20} />
-</button>
+            <button 
+              onClick={() => navigate('/calculator')}
+              className="bg-gray-800 p-4 rounded-xl flex items-center justify-between hover:bg-gray-700 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <Target className="text-orange-500" size={24} />
+                <span className="text-white font-semibold">BMI Calculator</span>
+              </div>
+              <ChevronRight className="text-gray-400 group-hover:text-white transition-colors" size={20} />
+            </button>
 
-            <button className="bg-gray-800 p-4 rounded-xl flex items-center justify-between hover:bg-gray-700 transition-colors group">
+            <button 
+              onClick={() => navigate('/exercises')}
+              className="bg-gray-800 p-4 rounded-xl flex items-center justify-between hover:bg-gray-700 transition-colors group"
+            >
               <div className="flex items-center gap-3">
                 <Dumbbell className="text-blue-500" size={24} />
                 <span className="text-white font-semibold">Exercise Library</span>
+              </div>
+              <ChevronRight className="text-gray-400 group-hover:text-white transition-colors" size={20} />
+            </button>
+
+            <button 
+              onClick={() => navigate('/timer')}
+              className="bg-gray-800 p-4 rounded-xl flex items-center justify-between hover:bg-gray-700 transition-colors group"
+            >
+              <div className="flex items-center gap-3">
+                <Play className="text-purple-500" size={24} />
+                <span className="text-white font-semibold">Rest Timer</span>
               </div>
               <ChevronRight className="text-gray-400 group-hover:text-white transition-colors" size={20} />
             </button>
