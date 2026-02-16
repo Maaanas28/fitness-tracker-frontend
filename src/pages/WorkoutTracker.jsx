@@ -1,346 +1,1251 @@
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
-  ArrowLeft, Dumbbell, Plus, Trash2, Save, Calendar, 
-  TrendingUp, Check, X 
+  ArrowLeft, Plus, Trash2, Check, X, Timer, 
+  ChevronRight, Activity, Calendar, Flame, Target, BarChart3, Minus,
+  Bookmark, Save, FolderOpen, Edit3, MessageSquare, TrendingUp
 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { 
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer, Cell
+} from 'recharts'
+import toast from 'react-hot-toast'
+import { EmptyState } from '../components/EmptyState'
+import { WorkoutSkeleton } from '../components/LoadingSkeleton'
+
+// Volume Display Card Component
+const VolumeCard = ({ currentWorkout }) => {
+  const totalVolume = currentWorkout.reduce((sum, exercise) => {
+    const exerciseVolume = exercise.sets.reduce((setSum, set) => {
+      return setSum + (set.weight * set.reps)
+    }, 0)
+    return sum + exerciseVolume
+  }, 0)
+
+  const completedSets = currentWorkout.reduce((count, exercise) => {
+    return count + exercise.sets.filter(set => set.completed).length
+  }, 0)
+
+  return (
+    <motion.div 
+      className="bg-gradient-to-br from-red-600 to-orange-600 rounded-2xl p-6 border border-red-500/30"
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      whileHover={{ scale: 1.02 }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-white/80 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+          <TrendingUp size={18} className="text-white" />
+          Session Volume
+        </h3>
+        <Flame className="text-yellow-300" size={24} />
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-5xl font-black text-white">
+          {totalVolume.toLocaleString()}
+        </span>
+        <span className="text-2xl text-white/80">kg</span>
+      </div>
+      <p className="text-white/60 text-xs mt-2">
+        {completedSets} sets completed • {currentWorkout.length} exercises
+      </p>
+    </motion.div>
+  )
+}
 
 function WorkoutTracker() {
   const navigate = useNavigate()
+  const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('today')
-  const [showAddExercise, setShowAddExercise] = useState(false)
+  const [showAddTerminal, setShowAddTerminal] = useState(false)
+  const [showTemplates, setShowTemplates] = useState(false)
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false)
+  const [timer, setTimer] = useState(0)
+  const [isTimerActive, setIsTimerActive] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState('')
+  const [showNoteModal, setShowNoteModal] = useState(null)
+  const [noteText, setNoteText] = useState('')
   
-  // Current workout state
-  const [currentWorkout, setCurrentWorkout] = useState([
-    {
-      id: 1,
-      name: 'Bench Press',
-      sets: [
-        { reps: 10, weight: 60, completed: true },
-        { reps: 8, weight: 70, completed: true },
-        { reps: 6, weight: 80, completed: false },
-      ]
-    },
-    {
-      id: 2,
-      name: 'Squats',
-      sets: [
-        { reps: 12, weight: 80, completed: true },
-        { reps: 10, weight: 90, completed: false },
-      ]
+  // Load from localStorage
+  const [currentWorkout, setCurrentWorkout] = useState(() => {
+    const saved = localStorage.getItem('currentWorkout')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (error) {
+        console.error('Failed to load workout:', error)
+        return []
+      }
     }
-  ])
-
-  // Workout history (dummy data)
-  const workoutHistory = [
-    {
-      date: '2026-02-14',
-      exercises: 5,
-      duration: '45 min',
-      calories: 320
-    },
-    {
-      date: '2026-02-12',
-      exercises: 4,
-      duration: '38 min',
-      calories: 280
-    },
-    {
-      date: '2026-02-10',
-      exercises: 6,
-      duration: '52 min',
-      calories: 380
-    },
-  ]
-
-  const [newExercise, setNewExercise] = useState({
-    name: '',
-    sets: 3,
-    reps: 10,
-    weight: 0
+    return []
   })
 
-  const addExercise = () => {
-    if (newExercise.name.trim()) {
-      const exercise = {
-        id: Date.now(),
-        name: newExercise.name,
-        sets: Array(newExercise.sets).fill().map(() => ({
-          reps: newExercise.reps,
-          weight: newExercise.weight,
-          completed: false
-        }))
+  // Load templates from localStorage
+  const [workoutTemplates, setWorkoutTemplates] = useState(() => {
+    const saved = localStorage.getItem('workoutTemplates')
+    if (saved) {
+      try {
+        return JSON.parse(saved)
+      } catch (error) {
+        return []
       }
-      setCurrentWorkout([...currentWorkout, exercise])
-      setNewExercise({ name: '', sets: 3, reps: 10, weight: 0 })
-      setShowAddExercise(false)
+    }
+    return [
+      {
+        id: 'template1',
+        name: 'Push Day',
+        exercises: [
+          { name: 'Bench Press', sets: [{ reps: 10, weight: 60 }, { reps: 8, weight: 70 }, { reps: 6, weight: 80 }] },
+          { name: 'Shoulder Press', sets: [{ reps: 12, weight: 40 }, { reps: 10, weight: 45 }] },
+          { name: 'Tricep Pushdown', sets: [{ reps: 15, weight: 30 }, { reps: 15, weight: 30 }] }
+        ]
+      },
+      {
+        id: 'template2',
+        name: 'Pull Day',
+        exercises: [
+          { name: 'Deadlift', sets: [{ reps: 5, weight: 100 }, { reps: 5, weight: 110 }] },
+          { name: 'Pull Ups', sets: [{ reps: 8, weight: 0 }, { reps: 8, weight: 0 }] },
+          { name: 'Barbell Rows', sets: [{ reps: 10, weight: 60 }, { reps: 10, weight: 60 }] }
+        ]
+      },
+      {
+        id: 'template3',
+        name: 'Leg Day',
+        exercises: [
+          { name: 'Squats', sets: [{ reps: 10, weight: 80 }, { reps: 8, weight: 90 }, { reps: 6, weight: 100 }] },
+          { name: 'Romanian Deadlifts', sets: [{ reps: 12, weight: 70 }, { reps: 10, weight: 80 }] },
+          { name: 'Leg Press', sets: [{ reps: 15, weight: 150 }, { reps: 12, weight: 170 }] }
+        ]
+      },
+      {
+        id: 'template4',
+        name: 'Full Body',
+        exercises: [
+          { name: 'Squats', sets: [{ reps: 10, weight: 70 }, { reps: 8, weight: 80 }] },
+          { name: 'Bench Press', sets: [{ reps: 10, weight: 60 }, { reps: 8, weight: 70 }] },
+          { name: 'Barbell Rows', sets: [{ reps: 10, weight: 60 }, { reps: 10, weight: 60 }] }
+        ]
+      },
+      {
+        id: 'template5',
+        name: 'Upper Body',
+        exercises: [
+          { name: 'Bench Press', sets: [{ reps: 10, weight: 60 }, { reps: 8, weight: 70 }] },
+          { name: 'Pull Ups', sets: [{ reps: 8, weight: 0 }, { reps: 6, weight: 0 }] },
+          { name: 'Shoulder Press', sets: [{ reps: 12, weight: 40 }, { reps: 10, weight: 45 }] }
+        ]
+      },
+      {
+        id: 'template6',
+        name: 'Lower Body',
+        exercises: [
+          { name: 'Squats', sets: [{ reps: 10, weight: 80 }, { reps: 8, weight: 90 }] },
+          { name: 'Romanian Deadlifts', sets: [{ reps: 12, weight: 70 }, { reps: 10, weight: 80 }] },
+          { name: 'Calf Raises', sets: [{ reps: 20, weight: 50 }, { reps: 20, weight: 50 }] }
+        ]
+      }
+    ]
+  })
+
+  // Load workout history from localStorage
+  const [workoutHistory, setWorkoutHistory] = useState(() => {
+    const saved = localStorage.getItem('workoutHistory')
+    return saved ? JSON.parse(saved) : []
+  })
+
+  useEffect(() => {
+    localStorage.setItem('workoutHistory', JSON.stringify(workoutHistory))
+  }, [workoutHistory])
+
+  useEffect(() => {
+    localStorage.setItem('currentWorkout', JSON.stringify(currentWorkout))
+  }, [currentWorkout])
+
+  useEffect(() => {
+    localStorage.setItem('workoutTemplates', JSON.stringify(workoutTemplates))
+  }, [workoutTemplates])
+
+  useEffect(() => {
+    setTimeout(() => setIsLoading(false), 800)
+  }, [])
+
+  const exerciseProgression = [
+    { week: 'Week 1', bench: 60, squat: 100, deadlift: 120 },
+    { week: 'Week 2', bench: 65, squat: 110, deadlift: 130 },
+    { week: 'Week 3', bench: 70, squat: 120, deadlift: 140 },
+    { week: 'Week 4', bench: 75, squat: 130, deadlift: 150 },
+  ]
+
+  const [newExercise, setNewExercise] = useState({ 
+    name: '', 
+    sets: [{ weight: 0, reps: 10 }] 
+  })
+
+  // Rest Timer Logic
+  useEffect(() => {
+    let interval = null
+    if (isTimerActive && timer > 0) {
+      interval = setInterval(() => setTimer(timer - 1), 1000)
+    } else if (timer === 0) {
+      setIsTimerActive(false)
+      clearInterval(interval)
+    }
+    return () => clearInterval(interval)
+  }, [isTimerActive, timer])
+
+  const toggleSetComplete = (exerciseId, setIndex) => {
+    setCurrentWorkout(prevWorkout => 
+      prevWorkout.map(exercise => {
+        if (exercise.id === exerciseId) {
+          const updatedSets = exercise.sets.map((set, i) => {
+            if (i === setIndex) {
+              const newState = !set.completed
+              if (newState) {
+                setTimer(60)
+                setIsTimerActive(true)
+              }
+              return { ...set, completed: newState }
+            }
+            return set
+          })
+          return { ...exercise, sets: updatedSets }
+        }
+        return exercise
+      })
+    )
+  }
+
+  // Save note for a set
+  const saveNote = () => {
+    if (showNoteModal) {
+      setCurrentWorkout(prevWorkout =>
+        prevWorkout.map(exercise => {
+          if (exercise.id === showNoteModal.exerciseId) {
+            const updatedSets = exercise.sets.map((set, i) => {
+              if (i === showNoteModal.setIndex) {
+                return { ...set, notes: noteText }
+              }
+              return set
+            })
+            return { ...exercise, sets: updatedSets }
+          }
+          return exercise
+        })
+      )
+      setShowNoteModal(null)
+      setNoteText('')
+      toast.success('Note saved')
     }
   }
 
-  const toggleSetComplete = (exerciseId, setIndex) => {
-    setCurrentWorkout(currentWorkout.map(exercise => {
-      if (exercise.id === exerciseId) {
-        const newSets = [...exercise.sets]
-        newSets[setIndex].completed = !newSets[setIndex].completed
-        return { ...exercise, sets: newSets }
-      }
-      return exercise
+  // Finish workout and save to history
+  const finishWorkout = () => {
+    if (currentWorkout.length === 0) {
+      toast.error('No exercises to save!')
+      return
+    }
+    
+    // Calculate total volume (weight × reps for all sets)
+    const totalVolume = currentWorkout.reduce((sum, exercise) => {
+      const exerciseVolume = exercise.sets.reduce((setSum, set) => {
+        return setSum + (set.weight * set.reps)
+      }, 0)
+      return sum + exerciseVolume
+    }, 0)
+    
+    // Count completed sets
+    const completedSets = currentWorkout.reduce((count, exercise) => {
+      return count + exercise.sets.filter(set => set.completed).length
+    }, 0)
+    
+    // Estimate calories (rough: 1kg lifted = 0.1 calories)
+    const estimatedCalories = Math.round(totalVolume * 0.1)
+    
+    const workout = {
+      id: Date.now(),
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      exercises: currentWorkout.length,
+      completedSets: completedSets,
+      volume: totalVolume,
+      calories: estimatedCalories,
+      duration: 45,
+      fullWorkout: currentWorkout
+    }
+    
+    setWorkoutHistory([workout, ...workoutHistory])
+    setCurrentWorkout([])
+    
+    toast.success(`✓ Workout Saved!\nVolume: ${totalVolume.toLocaleString()}kg`, {
+      duration: 5000,
+    })
+    setActiveTab('analytics')
+  }
+
+  // Open note modal
+  const openNoteModal = (exerciseId, setIndex, currentNote = '') => {
+    setShowNoteModal({ exerciseId, setIndex })
+    setNoteText(currentNote)
+  }
+
+  const addSetField = () => {
+    setNewExercise(prev => ({
+      ...prev,
+      sets: [...prev.sets, { weight: 0, reps: 10 }]
     }))
   }
 
-  const removeExercise = (exerciseId) => {
-    setCurrentWorkout(currentWorkout.filter(ex => ex.id !== exerciseId))
+  const removeSetField = (index) => {
+    if (newExercise.sets.length > 1) {
+      setNewExercise(prev => ({
+        ...prev,
+        sets: prev.sets.filter((_, i) => i !== index)
+      }))
+    }
+  }
+
+  const updateSet = (index, field, value) => {
+    setNewExercise(prev => {
+      const newSets = [...prev.sets]
+      newSets[index] = { 
+        ...newSets[index], 
+        [field]: value === '' ? 0 : parseFloat(value) 
+      }
+      return { ...prev, sets: newSets }
+    })
+  }
+
+  const addExercise = () => {
+    if (!newExercise.name.trim()) {
+      toast.error('Please enter an exercise name')
+      return
+    }
+    
+    setCurrentWorkout(prev => [...prev, {
+      id: Date.now(),
+      name: newExercise.name.trim(),
+      sets: newExercise.sets.map(set => ({
+        reps: parseInt(set.reps) || 10,
+        weight: parseFloat(set.weight) || 0,
+        completed: false,
+        notes: ''
+      }))
+    }])
+    setNewExercise({ name: '', sets: [{ weight: 0, reps: 10 }] })
+    setShowAddTerminal(false)
+    toast.success('Exercise added!')
+  }
+
+  // Save current workout as template
+  const saveAsTemplate = () => {
+    if (currentWorkout.length === 0) {
+      toast.error('No exercises to save!')
+      return
+    }
+    setShowCreateTemplate(true)
+  }
+
+  const createTemplate = () => {
+    if (!newTemplateName.trim()) {
+      toast.error('Please enter a template name')
+      return
+    }
+
+    const newTemplate = {
+      id: Date.now().toString(),
+      name: newTemplateName,
+      exercises: currentWorkout.map(ex => ({
+        name: ex.name,
+        sets: ex.sets.map(set => ({
+          reps: set.reps,
+          weight: set.weight
+        }))
+      }))
+    }
+
+    setWorkoutTemplates(prev => [newTemplate, ...prev])
+    setNewTemplateName('')
+    setShowCreateTemplate(false)
+    toast.success('Template saved!')
+  }
+
+  // Load template into current workout
+  const loadTemplate = (template) => {
+    const newWorkout = template.exercises.map((ex, index) => ({
+      id: Date.now() + index,
+      name: ex.name,
+      sets: ex.sets.map(set => ({
+        reps: set.reps,
+        weight: set.weight,
+        completed: false,
+        notes: ''
+      }))
+    }))
+
+    setCurrentWorkout(newWorkout)
+    setShowTemplates(false)
+    toast.success(`Loaded "${template.name}" template`)
+  }
+
+  // Delete template
+  const deleteTemplate = (templateId) => {
+    if (window.confirm('Delete this template?')) {
+      setWorkoutTemplates(prev => prev.filter(t => t.id !== templateId))
+      toast.success('Template deleted')
+    }
+  }
+
+  const totalExercises = currentWorkout.length
+  const completedSets = currentWorkout.reduce((sum, ex) => sum + ex.sets.filter(s => s.completed).length, 0)
+  const totalSets = currentWorkout.reduce((sum, ex) => sum + ex.sets.length, 0)
+  const completionRate = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null
+    return (
+      <div className="bg-slate-900 border border-amber-500/20 rounded-xl p-4 shadow-lg backdrop-blur-sm">
+        <p className="text-amber-400 font-bold text-sm mb-2">{label}</p>
+        <div className="space-y-1.5">
+          {payload.map((item, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="text-xs text-slate-300">{item.name}:</span>
+              <span className="font-bold" style={{ color: item.color }}>
+                {item.value}{item.dataKey === 'volume' ? ' kg' : item.dataKey === 'calories' ? ' kcal' : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+        {workoutHistory.find(h => h.date === label)?.duration && (
+          <div className="mt-2 px-2 py-1 bg-amber-500/10 rounded text-[10px] font-bold text-amber-400">
+            Total Duration: {workoutHistory.find(h => h.date === label)?.duration} min
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 text-slate-100 p-8">
+        <WorkoutSkeleton />
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-      {/* Header */}
-      <header className="bg-gray-800/50 backdrop-blur-sm p-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 text-slate-100 font-sans overflow-x-hidden relative">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(245,158,11,0.05),transparent_40%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(59,130,246,0.03),transparent_45%)]" />
+      
+      {/* HEADER */}
+      <header className="fixed top-0 w-full z-50 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 p-4 px-6 flex justify-between items-center">
+        <div className="flex items-center gap-5">
           <button 
             onClick={() => navigate('/dashboard')}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="p-2.5 hover:bg-slate-800 rounded-lg transition-colors"
           >
-            <ArrowLeft size={24} />
+            <ArrowLeft className="text-slate-400 hover:text-amber-400" size={22} />
           </button>
           <div className="flex items-center gap-3">
-            <Dumbbell className="text-lime-500" size={32} />
+            <div className="relative">
+              <Activity className="text-amber-400" size={28} />
+            </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Workout Tracker</h1>
-              <p className="text-gray-400 text-sm">Track your training sessions</p>
+              <h1 className="text-xl font-semibold tracking-tight text-slate-100">
+                Workout Tracker
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">Active training session</p>
             </div>
           </div>
         </div>
-        <button 
-          onClick={() => setShowAddExercise(true)}
-          className="bg-lime-500 hover:bg-lime-600 text-black font-semibold px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
-        >
-          <Plus size={20} />
-          Add Exercise
-        </button>
+        
+        {/* STATS HUD */}
+        <div className="flex items-center gap-6">
+          <AnimatePresence>
+            {timer > 0 && (
+              <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.8, opacity: 0 }}
+                className="flex items-center gap-2 text-amber-500 font-mono text-sm font-medium bg-amber-500/10 px-4 py-2 rounded-full border border-amber-500/20"
+              >
+                <Timer size={16} className="animate-pulse" />
+                <span>{timer}s rest</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+          
+          <div className="hidden md:flex items-center gap-8">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-amber-400">
+                {totalExercises}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1">Exercises</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-slate-200">
+                {completedSets}/{totalSets}
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1">Sets completed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-400">
+                {completionRate}%
+              </div>
+              <div className="text-[10px] text-slate-500 mt-1">Session progress</div>
+            </div>
+          </div>
+          
+          {/* Template Button */}
+          <button 
+            onClick={() => setShowTemplates(true)} 
+            className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all mr-2"
+            title="Load Template"
+          >
+            <FolderOpen size={24} className="text-slate-400" />
+          </button>
+          
+          {/* Save Template Button */}
+          <button 
+            onClick={saveAsTemplate} 
+            className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all mr-2"
+            title="Save as Template"
+          >
+            <Save size={24} className="text-slate-400" />
+          </button>
+          
+          <button 
+            onClick={() => setShowAddTerminal(true)} 
+            className="p-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 rounded-xl transition-all shadow-md shadow-amber-500/20"
+          >
+            <Plus size={24} strokeWidth={2.5} className="text-white" />
+          </button>
+        </div>
       </header>
 
-      {/* Tabs */}
-      <div className="max-w-6xl mx-auto px-6 pt-6">
-        <div className="flex gap-4 border-b border-gray-700">
-          <button
-            onClick={() => setActiveTab('today')}
-            className={`px-6 py-3 font-semibold transition-colors ${
-              activeTab === 'today'
-                ? 'text-lime-500 border-b-2 border-lime-500'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            Today's Workout
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`px-6 py-3 font-semibold transition-colors ${
-              activeTab === 'history'
-                ? 'text-lime-500 border-b-2 border-lime-500'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            History
-          </button>
+      <main className="max-w-7xl mx-auto pt-28 px-4 md:px-8 pb-24 relative z-10">
+        {/* TABS */}
+        <div className="flex gap-8 border-b border-slate-800 mb-10 px-2">
+          {['today', 'analytics'].map(tab => (
+            <button 
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`pb-4 text-sm font-medium uppercase tracking-wide transition-all relative group ${
+                activeTab === tab 
+                  ? 'text-amber-400' 
+                  : 'text-slate-500 hover:text-slate-200'
+              }`}
+            >
+              {tab === 'today' ? 'Current Session' : 'Performance Analytics'}
+              {activeTab === tab && (
+                <motion.div 
+                  layoutId="tabIndicator"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-blue-500"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ duration: 0.3 }}
+                />
+              )}
+            </button>
+          ))}
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="max-w-6xl mx-auto p-6">
-        {activeTab === 'today' ? (
-          <>
-            {/* Today's Workout */}
-            {currentWorkout.length > 0 ? (
-              <div className="space-y-4">
-                {currentWorkout.map((exercise) => (
-                  <div key={exercise.id} className="bg-gray-800 p-6 rounded-2xl">
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-xl font-bold text-white">{exercise.name}</h3>
-                      <button
-                        onClick={() => removeExercise(exercise.id)}
-                        className="text-red-400 hover:text-red-300 transition-colors"
+        <AnimatePresence mode="wait">
+          {activeTab === 'today' ? (
+            <motion.div 
+              key="today" 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-10"
+            >
+              {/* Volume Card */}
+              {currentWorkout.length > 0 && (
+                <VolumeCard currentWorkout={currentWorkout} />
+              )}
+
+              {currentWorkout.length === 0 ? (
+                <EmptyState
+                  icon={Activity}
+                  title="No Workout Started"
+                  message="Add your first exercise or load a template to begin tracking your progress."
+                  action={{
+                    label: "Add Exercise",
+                    onClick: () => setShowAddTerminal(true)
+                  }}
+                />
+              ) : (
+                currentWorkout.map((ex, exIdx) => (
+                  <motion.div
+                    key={ex.id}
+                    initial={{ opacity: 0, x: -30 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: exIdx * 0.1 }}
+                    className="bg-slate-800/50 rounded-2xl overflow-hidden border border-slate-800 group hover:border-amber-500/30 transition-all"
+                  >
+                    <div className="flex justify-between items-center p-6 bg-slate-900 border-b border-slate-800">
+                      <div className="flex items-center gap-5">
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-500/15 to-orange-600/15 border border-amber-500/20 rounded-xl flex items-center justify-center text-amber-400 font-bold text-lg">
+                          {exIdx + 1}
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-100">
+                          {ex.name}
+                        </h2>
+                      </div>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => setCurrentWorkout(currentWorkout.filter(e => e.id !== ex.id))}
+                        className="p-2.5 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                       >
                         <Trash2 size={20} />
-                      </button>
+                      </motion.button>
                     </div>
 
-                    {/* Sets */}
-                    <div className="space-y-3">
-                      {exercise.sets.map((set, index) => (
-                        <div
-                          key={index}
-                          className={`flex items-center justify-between p-4 rounded-lg transition-colors ${
-                            set.completed ? 'bg-lime-500/20' : 'bg-gray-900'
+                    <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {ex.sets.map((set, sIdx) => (
+                        <motion.div 
+                          key={sIdx}
+                          className={`relative p-5 rounded-xl border-2 transition-all duration-300 ${
+                            set.completed 
+                              ? 'bg-gradient-to-br from-amber-500 to-orange-600 border-amber-500' 
+                              : 'bg-slate-900 border-slate-800 hover:border-amber-500/40'
                           }`}
                         >
-                          <div className="flex items-center gap-4">
-                            <span className="text-gray-400 font-semibold w-16">
-                              Set {index + 1}
+                          <div className="flex justify-between items-start mb-3">
+                            <span className={`text-xs font-medium uppercase tracking-wide ${
+                              set.completed ? 'text-white/90' : 'text-amber-400/80'
+                            }`}>
+                              Set {sIdx + 1}
                             </span>
-                            <div className="flex gap-6">
-                              <div>
-                                <span className="text-gray-400 text-sm">Reps: </span>
-                                <span className="text-white font-semibold">{set.reps}</span>
-                              </div>
-                              <div>
-                                <span className="text-gray-400 text-sm">Weight: </span>
-                                <span className="text-white font-semibold">{set.weight} kg</span>
-                              </div>
+                            <div className="flex gap-2">
+                              {/* Note Button */}
+                              <button
+                                onClick={() => openNoteModal(ex.id, sIdx, set.notes || '')}
+                                className={`p-1.5 rounded-lg transition-all ${
+                                  set.notes 
+                                    ? 'text-amber-400 bg-amber-500/20' 
+                                    : 'text-slate-500 hover:text-amber-400 hover:bg-amber-500/10'
+                                }`}
+                                title={set.notes || 'Add note'}
+                              >
+                                <MessageSquare size={14} />
+                              </button>
+                              
+                              {/* Complete Checkbox */}
+                              <button
+                                onClick={() => toggleSetComplete(ex.id, sIdx)}
+                                className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
+                                  set.completed 
+                                    ? 'bg-white border-white scale-110' 
+                                    : 'border-amber-500/30 bg-slate-800 hover:border-amber-500'
+                                }`}
+                              >
+                                {set.completed && (
+                                  <Check size={16} strokeWidth={3} className="text-amber-600" />
+                                )}
+                              </button>
                             </div>
                           </div>
-                          <button
-                            onClick={() => toggleSetComplete(exercise.id, index)}
-                            className={`p-2 rounded-lg transition-colors ${
-                              set.completed
-                                ? 'bg-lime-500 text-black'
-                                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                            }`}
-                          >
-                            {set.completed ? <Check size={20} /> : <Check size={20} />}
-                          </button>
-                        </div>
+
+                          <div className="space-y-2">
+                            <div className="flex items-baseline gap-3">
+                              <p className="text-2xl md:text-3xl font-bold">
+                                {set.weight}
+                                <span className="text-sm ml-1 opacity-70">kg</span>
+                              </p>
+                              <p className={`text-sm font-medium ${
+                                set.completed ? 'text-white/80' : 'text-amber-400/70'
+                              }`}>
+                                {set.reps} reps
+                              </p>
+                            </div>
+                            
+                            {/* Show note if exists */}
+                            {set.notes && (
+                              <div className="mt-2 pt-2 border-t border-amber-500/30">
+                                <div className="flex items-start gap-1.5 text-xs font-medium text-white/80">
+                                  <MessageSquare size={12} className="text-amber-300 flex-shrink-0 mt-0.5" />
+                                  <span className="italic">{set.notes}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
                       ))}
                     </div>
-                  </div>
-                ))}
-
-                {/* Save Workout Button */}
-                <button className="w-full bg-lime-500 hover:bg-lime-600 text-black font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2">
-                  <Save size={20} />
-                  Save Workout
-                </button>
-              </div>
-            ) : (
-              <div className="bg-gray-800 p-12 rounded-2xl text-center">
-                <Dumbbell className="text-gray-600 mx-auto mb-4" size={64} />
-                <p className="text-gray-400 text-lg mb-4">
-                  No exercises added yet. Start your workout!
-                </p>
-                <button
-                  onClick={() => setShowAddExercise(true)}
-                  className="bg-lime-500 hover:bg-lime-600 text-black font-semibold px-6 py-3 rounded-lg transition-colors"
+                  </motion.div>
+                ))
+              )}
+              
+              {currentWorkout.length > 0 && (
+                <motion.button
+                  onClick={finishWorkout}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 py-5 rounded-2xl font-bold text-lg text-white shadow-md shadow-green-500/20 transition-all mt-2"
                 >
-                  Add First Exercise
-                </button>
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            {/* Workout History */}
-            <div className="space-y-4">
-              {workoutHistory.map((workout, index) => (
-                <div key={index} className="bg-gray-800 p-6 rounded-xl hover:bg-gray-750 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="bg-lime-500/20 p-3 rounded-lg">
-                        <Calendar className="text-lime-500" size={24} />
-                      </div>
+                  ✓ Finish Workout & Save
+                  <ChevronRight size={18} className="inline ml-2" />
+                </motion.button>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="analytics" 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-8"
+            >
+              {workoutHistory.length === 0 ? (
+                <EmptyState
+                  icon={BarChart3}
+                  title="No Workout History"
+                  message="Complete your first workout to see analytics and track your progress!"
+                />
+              ) : (
+                <>
+                  {/* WORKOUT VOLUME & CALORIES CHART */}
+                  <div className="bg-slate-800/50 rounded-2xl border border-slate-800 p-6">
+                    <div className="flex items-center justify-between mb-6">
                       <div>
-                        <p className="text-white font-semibold text-lg">
-                          {new Date(workout.date).toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </p>
-                        <p className="text-gray-400 text-sm">{workout.duration}</p>
+                        <h2 className="text-xl font-bold flex items-center gap-2.5 text-slate-100">
+                          <BarChart3 className="text-blue-400" size={24} />
+                          Training Volume Analytics
+                        </h2>
+                        <p className="text-slate-500 text-sm mt-1">Recent workout sessions</p>
+                      </div>
+                      <div className="flex gap-4">
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                          <span>Volume (kg)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                          <span>Calories</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex gap-6">
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-white">{workout.exercises}</p>
-                        <p className="text-gray-400 text-sm">exercises</p>
+                    
+                    <div className="h-[300px] -mx-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={workoutHistory.slice(0, 7).reverse()} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
+                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
+                          <XAxis 
+                            dataKey="date" 
+                            stroke="#64748b" 
+                            fontSize={12} 
+                            tickLine={false} 
+                            axisLine={{ stroke: '#334155' }} 
+                          />
+                          <YAxis 
+                            yAxisId="left" 
+                            stroke="#60a5fa" 
+                            fontSize={11} 
+                            tickLine={false} 
+                            axisLine={false} 
+                            width={45}
+                          />
+                          <YAxis 
+                            yAxisId="right" 
+                            stroke="#f59e0b" 
+                            fontSize={11} 
+                            tickLine={false} 
+                            axisLine={false} 
+                            orientation="right" 
+                            width={45}
+                          />
+                          <Tooltip content={<CustomTooltip />} cursor={{ fill: '#334155', opacity: 0.5 }} />
+                          
+                          <Line 
+                            yAxisId="left" 
+                            type="monotone" 
+                            dataKey="volume" 
+                            stroke="#3b82f6" 
+                            strokeWidth={2.5} 
+                            dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }} 
+                            activeDot={{ r: 7 }} 
+                          />
+                          
+                          <Line 
+                            yAxisId="right" 
+                            type="monotone" 
+                            dataKey="calories" 
+                            stroke="#f59e0b" 
+                            strokeWidth={2.5} 
+                            dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }} 
+                            activeDot={{ r: 7 }} 
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center p-3 bg-slate-900 rounded-xl">
+                        <div className="text-xs text-slate-500 mb-1">Avg Volume</div>
+                        <div className="font-bold text-lg text-blue-400">
+                          {workoutHistory.length > 0 ? Math.round(workoutHistory.reduce((sum, d) => sum + d.volume, 0) / workoutHistory.length).toLocaleString() : 0}
+                        </div>
+                        <div className="text-[10px] text-slate-600">kg/session</div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold text-lime-500">{workout.calories}</p>
-                        <p className="text-gray-400 text-sm">calories</p>
+                      <div className="text-center p-3 bg-slate-900 rounded-xl">
+                        <div className="text-xs text-slate-500 mb-1">Avg Calories</div>
+                        <div className="font-bold text-lg text-amber-400">
+                          {workoutHistory.length > 0 ? Math.round(workoutHistory.reduce((sum, d) => sum + d.calories, 0) / workoutHistory.length) : 0}
+                        </div>
+                        <div className="text-[10px] text-slate-600">kcal/session</div>
+                      </div>
+                      <div className="text-center p-3 bg-slate-900 rounded-xl">
+                        <div className="text-xs text-slate-500 mb-1">Avg Duration</div>
+                        <div className="font-bold text-lg text-green-400">
+                          {workoutHistory.length > 0 ? Math.round(workoutHistory.reduce((sum, d) => sum + d.duration, 0) / workoutHistory.length) : 0}
+                        </div>
+                        <div className="text-[10px] text-slate-600">min/session</div>
+                      </div>
+                      <div className="text-center p-3 bg-slate-900 rounded-xl">
+                        <div className="text-xs text-slate-500 mb-1">Total Sessions</div>
+                        <div className="font-bold text-lg text-purple-400">
+                          {workoutHistory.length}
+                        </div>
+                        <div className="text-[10px] text-slate-600">completed</div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </div>
 
-      {/* Add Exercise Modal */}
-      {showAddExercise && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 p-8 rounded-2xl max-w-md w-full">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-white">Add Exercise</h3>
-              <button
-                onClick={() => setShowAddExercise(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                  {/* STRENGTH PROGRESSION CHART */}
+                  <div className="bg-slate-800/50 rounded-2xl border border-slate-800 p-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h2 className="text-xl font-bold flex items-center gap-2.5 text-slate-100">
+                          <Target className="text-amber-400" size={24} />
+                          Strength Progression
+                        </h2>
+                        <p className="text-slate-500 text-sm mt-1">Weight lifted over time</p>
+                      </div>
+                    </div>
+                    
+                    <div className="h-[260px] -mx-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={exerciseProgression} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
+                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
+                          <XAxis 
+                            dataKey="week" 
+                            stroke="#64748b" 
+                            fontSize={12} 
+                            tickLine={false} 
+                            axisLine={{ stroke: '#334155' }} 
+                          />
+                          <YAxis 
+                            stroke="#64748b" 
+                            fontSize={11} 
+                            tickLine={false} 
+                            axisLine={false} 
+                            width={40}
+                          />
+                          <Tooltip 
+                            cursor={{ fill: '#334155', opacity: 0.5 }}
+                            contentStyle={{ 
+                              backgroundColor: '#1e293b', 
+                              border: '1px solid #334155', 
+                              borderRadius: '10px'
+                            }}
+                            labelStyle={{ color: '#cbd5e1', fontWeight: 500 }}
+                          />
+                          
+                          <Bar dataKey="bench" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={25}>
+                            {exerciseProgression.map((entry, index) => (
+                              <Cell key={`cell-bench-${index}`} fill="#3b82f6" />
+                            ))}
+                          </Bar>
+                          <Bar dataKey="squat" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={25}>
+                            {exerciseProgression.map((entry, index) => (
+                              <Cell key={`cell-squat-${index}`} fill="#8b5cf6" />
+                            ))}
+                          </Bar>
+                          <Bar dataKey="deadlift" fill="#10b981" radius={[6, 6, 0, 0]} barSize={25}>
+                            {exerciseProgression.map((entry, index) => (
+                              <Cell key={`cell-deadlift-${index}`} fill="#10b981" />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    
+                    <div className="mt-5 flex justify-center gap-5">
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                        <span>Bench Press</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                        <span>Squat</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                        <span>Deadlift</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RECENT WORKOUTS LIST */}
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-bold text-slate-200 mb-4">Recent Workouts</h3>
+                    {workoutHistory.slice(0, 10).map((h, i) => (
+                      <motion.div
+                        key={h.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="bg-slate-800/50 rounded-xl p-4 border border-slate-800 hover:border-blue-500/30 transition-all"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500/15 to-cyan-600/15 rounded-lg flex items-center justify-center text-blue-400 border border-blue-500/20">
+                              <Calendar size={20} />
+                            </div>
+                            <div>
+                              <p className="font-medium text-lg text-slate-100">{h.date}</p>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {h.exercises} exercises • {h.completedSets} sets • {h.volume.toLocaleString()}kg
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-bold text-xl text-amber-400">
+                              +{h.calories}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5">calories burned</div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
+
+      {/* ADD EXERCISE MODAL */}
+      <AnimatePresence>
+        {showAddTerminal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowAddTerminal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="w-full max-w-2xl bg-slate-900 rounded-2xl p-7 shadow-2xl border border-slate-800 max-h-[90vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setShowAddTerminal(false)} 
+                className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors"
               >
-                <X size={24} />
+                <X size={28} strokeWidth={2} />
               </button>
-            </div>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-slate-100">Add New Exercise</h2>
+                  <p className="text-slate-500">Enter exercise details with custom weights per set</p>
+                </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-gray-300 text-sm font-medium block mb-2">
-                  Exercise Name
-                </label>
-                <input
-                  type="text"
-                  value={newExercise.name}
-                  onChange={(e) => setNewExercise({...newExercise, name: e.target.value})}
-                  placeholder="e.g., Bench Press"
-                  className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={newExercise.name} 
+                  onChange={e => setNewExercise({...newExercise, name: e.target.value})}
+                  placeholder="Exercise name (e.g., Bench Press)" 
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all"
                 />
-              </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="text-gray-300 text-sm font-medium block mb-2">
-                    Sets
-                  </label>
-                  <input
-                    type="number"
-                    value={newExercise.sets}
-                    onChange={(e) => setNewExercise({...newExercise, sets: parseInt(e.target.value)})}
-                    className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
-                  />
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-bold text-slate-200">Sets</h3>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={addSetField}
+                      className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-medium text-sm"
+                    >
+                      <Plus size={18} strokeWidth={2.5} />
+                      Add Set
+                    </motion.button>
+                  </div>
+                  
+                  {newExercise.sets.map((set, index) => (
+                    <div key={index} className="flex items-end gap-3 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+                      <div className="flex-1">
+                        <label className="text-xs font-medium text-slate-400 block mb-1.5">Weight (kg)</label>
+                        <input 
+                          type="number" 
+                          value={set.weight} 
+                          onChange={e => updateSet(index, 'weight', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-lg font-medium text-center text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-xs font-medium text-slate-400 block mb-1.5">Reps</label>
+                        <input 
+                          type="number" 
+                          value={set.reps} 
+                          onChange={e => updateSet(index, 'reps', e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-lg font-medium text-center text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all"
+                          placeholder="10"
+                        />
+                      </div>
+                      {newExercise.sets.length > 1 && (
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => removeSetField(index)}
+                          className="text-red-500 hover:text-red-400 p-2.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                          title="Remove set"
+                        >
+                          <Minus size={20} strokeWidth={2.5} />
+                        </motion.button>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <label className="text-gray-300 text-sm font-medium block mb-2">
-                    Reps
-                  </label>
-                  <input
-                    type="number"
-                    value={newExercise.reps}
-                    onChange={(e) => setNewExercise({...newExercise, reps: parseInt(e.target.value)})}
-                    className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="text-gray-300 text-sm font-medium block mb-2">
-                    Weight (kg)
-                  </label>
-                  <input
-                    type="number"
-                    value={newExercise.weight}
-                    onChange={(e) => setNewExercise({...newExercise, weight: parseFloat(e.target.value)})}
-                    className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
-                  />
-                </div>
-              </div>
 
-              <button
-                onClick={addExercise}
-                className="w-full bg-lime-500 hover:bg-lime-600 text-black font-bold py-3 rounded-lg transition-colors"
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={addExercise}
+                  disabled={!newExercise.name.trim()}
+                  className={`w-full py-4 rounded-xl font-bold text-lg shadow-md transition-all mt-2 flex items-center justify-center gap-2.5 ${
+                    newExercise.name.trim() 
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 shadow-amber-500/30' 
+                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  <Plus size={22} strokeWidth={2.5} />
+                  Add to Workout
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* TEMPLATES MODAL */}
+      <AnimatePresence>
+        {showTemplates && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowTemplates(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="w-full max-w-3xl bg-slate-900 rounded-2xl p-7 shadow-2xl border border-slate-800 max-h-[80vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setShowTemplates(false)} 
+                className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors"
               >
-                Add Exercise
+                <X size={28} strokeWidth={2} />
               </button>
-            </div>
-          </div>
-        </div>
-      )}
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                    <Bookmark className="text-amber-400" size={28} />
+                    Workout Templates
+                  </h2>
+                  <p className="text-slate-500">Load a saved template to start your workout</p>
+                </div>
+
+                {workoutTemplates.length === 0 ? (
+                  <EmptyState
+                    icon={FolderOpen}
+                    title="No Templates"
+                    message="Save your current workout as a template to get started."
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    {workoutTemplates.map(template => (
+                      <motion.div
+                        key={template.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-amber-500/30 transition-all group"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold text-white mb-2">{template.name}</h3>
+                            <div className="flex flex-wrap gap-2">
+                              {template.exercises.map((ex, i) => (
+                                <span key={i} className="text-xs bg-slate-700 text-slate-300 px-3 py-1 rounded-full">
+                                  {ex.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => loadTemplate(template)}
+                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-lg text-sm transition-all"
+                            >
+                              Load
+                            </button>
+                            <button
+                              onClick={() => deleteTemplate(template.id)}
+                              className="p-2 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* CREATE TEMPLATE MODAL */}
+      <AnimatePresence>
+        {showCreateTemplate && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowCreateTemplate(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="w-full max-w-md bg-slate-900 rounded-2xl p-7 shadow-2xl border border-slate-800"
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setShowCreateTemplate(false)} 
+                className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors"
+              >
+                <X size={24} strokeWidth={2} />
+              </button>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                    <Save className="text-amber-400" size={24} />
+                    Save as Template
+                  </h2>
+                  <p className="text-slate-500">Give your template a name</p>
+                </div>
+
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={newTemplateName}
+                  onChange={(e) => setNewTemplateName(e.target.value)}
+                  placeholder="e.g., Push Day, Full Body, etc." 
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all"
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowCreateTemplate(false)}
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={createTemplate}
+                    className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 font-bold rounded-xl transition-all"
+                  >
+                    Save Template
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* NOTE MODAL */}
+      <AnimatePresence>
+        {showNoteModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowNoteModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="w-full max-w-md bg-slate-900 rounded-2xl p-7 shadow-2xl border border-slate-800"
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setShowNoteModal(null)} 
+                className="absolute top-5 right-5 text-slate-500 hover:text-white transition-colors"
+              >
+                <X size={24} strokeWidth={2} />
+              </button>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
+                    <MessageSquare className="text-amber-400" size={24} />
+                    Add Note
+                  </h2>
+                  <p className="text-slate-500">How did this set feel?</p>
+                </div>
+
+                <textarea
+                  autoFocus
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="e.g., Felt heavy, good form, add weight next time..."
+                  rows={4}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all resize-none"
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowNoteModal(null)}
+                    className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveNote}
+                    className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 font-bold rounded-xl transition-all"
+                  >
+                    Save Note
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

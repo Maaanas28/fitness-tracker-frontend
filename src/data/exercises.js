@@ -1,254 +1,67 @@
+// src/data/exercises.js
+
 export const exercises = {
   chest: [
-    {
-      id: 1,
-      name: 'Bench Press',
-      difficulty: 'Intermediate',
-      equipment: 'Barbell',
-      description: 'Lie on bench, lower bar to chest, press up',
-      sets: '3-4',
-      reps: '8-12',
-      tips: 'Keep shoulder blades retracted, feet flat on floor'
-    },
-    {
-      id: 2,
-      name: 'Push-ups',
-      difficulty: 'Beginner',
-      equipment: 'Bodyweight',
-      description: 'Classic chest exercise, hands shoulder-width',
-      sets: '3-4',
-      reps: '10-20',
-      tips: 'Keep core tight, full range of motion'
-    },
-    {
-      id: 3,
-      name: 'Dumbbell Flyes',
-      difficulty: 'Intermediate',
-      equipment: 'Dumbbells',
-      description: 'Lying on bench, arc dumbbells out and in',
-      sets: '3',
-      reps: '10-15',
-      tips: 'Slight bend in elbows, stretch at bottom'
-    },
-    {
-      id: 4,
-      name: 'Incline Bench Press',
-      difficulty: 'Intermediate',
-      equipment: 'Barbell',
-      description: 'Bench at 30-45 degrees, press upward',
-      sets: '3-4',
-      reps: '8-12',
-      tips: 'Targets upper chest, control the weight'
-    }
+    { id: 'bench-press', name: 'Barbell Bench Press', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-5', reps: '6-12', description: 'The king of chest exercises. Lie on back, lower bar to mid-chest, press up explosively.', tips: 'Retract scapula (shoulder blades), keep feet planted.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0025.jpg' },
+    { id: 'incline-bench', name: 'Incline Bench Press', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Targets the upper clavicular head of the pecs.', tips: 'Set bench to 30-45 degrees.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0047.jpg' },
+    { id: 'decline-bench', name: 'Decline Bench Press', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Targets lower chest.', tips: 'Do not bounce the bar off your chest.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0170.jpg' },
+    { id: 'dumbell-press', name: 'Dumbbell Press', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3-4', reps: '8-12', description: 'Allows for greater range of motion than barbell.', tips: 'Bring weights down to chest level.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0289.jpg' },
+    { id: 'incline-db-press', name: 'Incline DB Press', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3-4', reps: '8-12', description: 'Upper chest isolation with dumbbells.', tips: 'Control the weights on the way down.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0299.jpg' },
+    { id: 'db-fly', name: 'Dumbbell Fly', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3', reps: '12-15', description: 'Isolation movement for chest width.', tips: 'Keep a slight bend in elbows.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0303.jpg' },
+    { id: 'cable-crossover', name: 'Cable Crossover', difficulty: 'Intermediate', equipment: 'Cable', sets: '3', reps: '15-20', description: 'Constant tension for inner chest.', tips: 'Squeeze at the peak for 1 second.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0119.jpg' },
+    { id: 'pushup', name: 'Push-Up', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: 'AMRAP', description: 'Classic bodyweight builder.', tips: 'Keep body in a straight line.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0662.jpg' },
+    { id: 'dips', name: 'Chest Dips', difficulty: 'Intermediate', equipment: 'Bodyweight', sets: '3', reps: '8-12', description: 'Lower chest and tricep builder.', tips: 'Lean forward to target chest.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0251.jpg' },
+    { id: 'pec-deck', name: 'Machine Pec Fly', difficulty: 'Beginner', equipment: 'Machine', sets: '3', reps: '12-15', description: 'Machine isolation for chest.', tips: 'Adjust seat so handles are at chest height.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0009.jpg' },
+    { id: 'svend-press', name: 'Svend Press', difficulty: 'Intermediate', equipment: 'Plate', sets: '3', reps: '15', description: 'Inner chest isometric squeeze.', tips: 'Press plate hard between palms.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0786.jpg' }
   ],
   back: [
-    {
-      id: 5,
-      name: 'Pull-ups',
-      difficulty: 'Advanced',
-      equipment: 'Pull-up Bar',
-      description: 'Hang from bar, pull body up until chin over bar',
-      sets: '3-4',
-      reps: '6-12',
-      tips: 'Full extension at bottom, squeeze at top'
-    },
-    {
-      id: 6,
-      name: 'Deadlifts',
-      difficulty: 'Advanced',
-      equipment: 'Barbell',
-      description: 'Lift bar from ground to hip level',
-      sets: '3-5',
-      reps: '5-8',
-      tips: 'Keep back straight, push through heels'
-    },
-    {
-      id: 7,
-      name: 'Bent Over Rows',
-      difficulty: 'Intermediate',
-      equipment: 'Barbell',
-      description: 'Bend at hips, pull bar to lower chest',
-      sets: '3-4',
-      reps: '8-12',
-      tips: 'Keep back flat, pull elbows back'
-    },
-    {
-      id: 8,
-      name: 'Lat Pulldowns',
-      difficulty: 'Beginner',
-      equipment: 'Cable Machine',
-      description: 'Pull bar down to upper chest while seated',
-      sets: '3-4',
-      reps: '10-15',
-      tips: 'Lean back slightly, full stretch at top'
-    }
-  ],
-  arms: [
-    {
-      id: 9,
-      name: 'Bicep Curls',
-      difficulty: 'Beginner',
-      equipment: 'Dumbbells',
-      description: 'Curl weights up to shoulders, control down',
-      sets: '3-4',
-      reps: '10-15',
-      tips: 'Keep elbows stationary, squeeze at top'
-    },
-    {
-      id: 10,
-      name: 'Tricep Dips',
-      difficulty: 'Intermediate',
-      equipment: 'Parallel Bars',
-      description: 'Lower body by bending arms, press back up',
-      sets: '3-4',
-      reps: '8-12',
-      tips: 'Lean forward slightly, full range of motion'
-    },
-    {
-      id: 11,
-      name: 'Hammer Curls',
-      difficulty: 'Beginner',
-      equipment: 'Dumbbells',
-      description: 'Curl with palms facing each other',
-      sets: '3',
-      reps: '10-15',
-      tips: 'Targets brachialis, control the movement'
-    },
-    {
-      id: 12,
-      name: 'Overhead Tricep Extension',
-      difficulty: 'Beginner',
-      equipment: 'Dumbbell',
-      description: 'Hold weight overhead, lower behind head',
-      sets: '3',
-      reps: '12-15',
-      tips: 'Keep elbows close to head, stretch at bottom'
-    }
+    { id: 'deadlift', name: 'Barbell Deadlift', difficulty: 'Advanced', equipment: 'Barbell', sets: '3-5', reps: '3-6', description: 'Total back and posterior chain builder.', tips: 'Keep spine neutral.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0032.jpg' },
+    { id: 'pullup', name: 'Pull-Up', difficulty: 'Intermediate', equipment: 'Bodyweight', sets: '3', reps: '6-12', description: 'Vertical pull for lats.', tips: 'Full extension at the bottom.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0652.jpg' },
+    { id: 'bent-row', name: 'Bent Over Row', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Thickness for mid-back.', tips: 'Pull bar to lower chest/waist.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0027.jpg' },
+    { id: 'lat-pulldown', name: 'Lat Pulldown', difficulty: 'Beginner', equipment: 'Cable', sets: '3-4', reps: '10-12', description: 'Width builder for lats.', tips: 'Drive elbows down, not back.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0329.jpg' },
+    { id: 'seated-row', name: 'Seated Cable Row', difficulty: 'Beginner', equipment: 'Cable', sets: '3-4', reps: '10-12', description: 'Mid-back thickness.', tips: 'Squeeze shoulder blades together.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0861.jpg' },
+    { id: 'tbar-row', name: 'T-Bar Row', difficulty: 'Intermediate', equipment: 'Machine', sets: '3-4', reps: '8-12', description: 'Supported heavy rowing.', tips: 'Keep chest on the pad.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0197.jpg' },
+    { id: 'single-arm-row', name: 'Dumbbell Row', difficulty: 'Beginner', equipment: 'Dumbbell', sets: '3', reps: '10-12', description: 'Unilateral lat work.', tips: 'Keep torso parallel to ground.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0292.jpg' },
+    { id: 'face-pull', name: 'Face Pull', difficulty: 'Beginner', equipment: 'Cable', sets: '3', reps: '15-20', description: 'Rear delts and rotator cuff.', tips: 'Pull to forehead level.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0344.jpg' },
+    { id: 'shrugs', name: 'Barbell Shrug', difficulty: 'Beginner', equipment: 'Barbell', sets: '4', reps: '12-15', description: 'Upper traps isolation.', tips: 'Do not roll shoulders, just lift up.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0095.jpg' },
+    { id: 'hyperextension', name: 'Back Extension', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: '15', description: 'Lower back endurance.', tips: 'Do not hyperextend at the top.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0036.jpg' }
   ],
   legs: [
-    {
-      id: 13,
-      name: 'Squats',
-      difficulty: 'Intermediate',
-      equipment: 'Barbell',
-      description: 'Lower hips back and down, push back up',
-      sets: '3-5',
-      reps: '8-12',
-      tips: 'Keep chest up, knees track over toes'
-    },
-    {
-      id: 14,
-      name: 'Lunges',
-      difficulty: 'Beginner',
-      equipment: 'Bodyweight/Dumbbells',
-      description: 'Step forward, lower back knee toward ground',
-      sets: '3',
-      reps: '10-15 each leg',
-      tips: 'Keep front knee behind toes, upright torso'
-    },
-    {
-      id: 15,
-      name: 'Leg Press',
-      difficulty: 'Beginner',
-      equipment: 'Leg Press Machine',
-      description: 'Push platform away with feet',
-      sets: '3-4',
-      reps: '10-15',
-      tips: 'Full range of motion, control the weight'
-    },
-    {
-      id: 16,
-      name: 'Romanian Deadlifts',
-      difficulty: 'Intermediate',
-      equipment: 'Barbell',
-      description: 'Hinge at hips, lower bar along legs',
-      sets: '3-4',
-      reps: '8-12',
-      tips: 'Targets hamstrings, slight knee bend'
-    }
+    { id: 'squat', name: 'Barbell Squat', difficulty: 'Advanced', equipment: 'Barbell', sets: '3-5', reps: '5-8', description: 'Overall leg mass builder.', tips: 'Knees track over toes.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0043.jpg' },
+    { id: 'leg-press', name: 'Leg Press', difficulty: 'Beginner', equipment: 'Machine', sets: '3-4', reps: '10-15', description: 'Heavy quad loading.', tips: 'Do not lock knees.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0631.jpg' },
+    { id: 'lunge', name: 'Walking Lunge', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3', reps: '12 steps', description: 'Unilateral leg strength.', tips: 'Keep torso upright.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0336.jpg' },
+    { id: 'leg-ext', name: 'Leg Extension', difficulty: 'Beginner', equipment: 'Machine', sets: '3', reps: '15-20', description: 'Quad isolation.', tips: 'Squeeze quads at the top.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0585.jpg' },
+    { id: 'leg-curl', name: 'Lying Leg Curl', difficulty: 'Beginner', equipment: 'Machine', sets: '3', reps: '12-15', description: 'Hamstring isolation.', tips: 'Keep hips pressed into pad.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0600.jpg' },
+    { id: 'rdl', name: 'Romanian Deadlift', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Hamstring and glute focus.', tips: 'Push hips back, keep soft knees.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0035.jpg' },
+    { id: 'calf-raise', name: 'Standing Calf Raise', difficulty: 'Beginner', equipment: 'Machine', sets: '4', reps: '15-20', description: 'Calf mass.', tips: 'Full stretch at bottom.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/1390.jpg' },
+    { id: 'goblet-squat', name: 'Goblet Squat', difficulty: 'Beginner', equipment: 'Dumbbell', sets: '3', reps: '12', description: 'Quad focus, easier on back.', tips: 'Hold weight at chest.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0306.jpg' },
+    { id: 'bulgarian', name: 'Bulgarian Split Squat', difficulty: 'Advanced', equipment: 'Dumbbell', sets: '3', reps: '8-10', description: 'Single leg stability and mass.', tips: 'Rear foot elevated.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0270.jpg' }
   ],
   shoulders: [
-    {
-      id: 17,
-      name: 'Shoulder Press',
-      difficulty: 'Intermediate',
-      equipment: 'Dumbbells',
-      description: 'Press weights overhead from shoulder height',
-      sets: '3-4',
-      reps: '8-12',
-      tips: 'Keep core tight, press straight up'
-    },
-    {
-      id: 18,
-      name: 'Lateral Raises',
-      difficulty: 'Beginner',
-      equipment: 'Dumbbells',
-      description: 'Raise arms out to sides to shoulder height',
-      sets: '3-4',
-      reps: '12-15',
-      tips: 'Slight bend in elbows, control the movement'
-    },
-    {
-      id: 19,
-      name: 'Front Raises',
-      difficulty: 'Beginner',
-      equipment: 'Dumbbells',
-      description: 'Raise weights in front to shoulder height',
-      sets: '3',
-      reps: '12-15',
-      tips: 'Keep arms straight, control down'
-    },
-    {
-      id: 20,
-      name: 'Face Pulls',
-      difficulty: 'Beginner',
-      equipment: 'Cable Machine',
-      description: 'Pull rope attachment toward face',
-      sets: '3-4',
-      reps: '15-20',
-      tips: 'Targets rear delts, pull high'
-    }
+    { id: 'ohp', name: 'Overhead Press', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-5', reps: '5-8', description: 'Compound shoulder mass.', tips: 'Tight core, do not lean back.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0042.jpg' },
+    { id: 'db-press', name: 'Seated DB Press', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3-4', reps: '8-12', description: 'Anterior and lateral delt.', tips: 'Press in an arc.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0358.jpg' },
+    { id: 'lat-raise', name: 'Lateral Raise', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '4', reps: '15-20', description: 'Side delt width.', tips: 'Lead with elbows.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0334.jpg' },
+    { id: 'front-raise', name: 'Front Raise', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3', reps: '12-15', description: 'Front delt isolation.', tips: 'Controlled tempo.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0310.jpg' },
+    { id: 'rev-fly', name: 'Reverse Fly', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3', reps: '15', description: 'Rear delt isolation.', tips: 'Bend forward, fly arms out.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0339.jpg' },
+    { id: 'upright-row', name: 'Upright Row', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3', reps: '10-12', description: 'Traps and side delts.', tips: 'Do not pull too high (shoulder impingement).', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0053.jpg' },
+    { id: 'arnold', name: 'Arnold Press', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3', reps: '10-12', description: 'Full shoulder rotation.', tips: 'Twist dumbbells as you press.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0264.jpg' }
+  ],
+  arms: [
+    { id: 'bb-curl', name: 'Barbell Curl', difficulty: 'Beginner', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Mass builder for biceps.', tips: 'Keep elbows tucked.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0023.jpg' },
+    { id: 'db-curl', name: 'Dumbbell Curl', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3', reps: '10-12', description: 'Standard curl.', tips: 'Supinate (twist) wrist at top.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0291.jpg' },
+    { id: 'hammer', name: 'Hammer Curl', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3', reps: '10-12', description: 'Brachialis and forearm.', tips: 'Thumbs up grip.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0313.jpg' },
+    { id: 'preacher', name: 'Preacher Curl', difficulty: 'Intermediate', equipment: 'EZ Bar', sets: '3', reps: '12', description: 'Strict bicep isolation.', tips: 'Full stretch at bottom.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0438.jpg' },
+    { id: 'skull', name: 'Skullcrushers', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Tricep mass.', tips: 'Lower to forehead.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0034.jpg' },
+    { id: 'pushdown', name: 'Cable Pushdown', difficulty: 'Beginner', equipment: 'Cable', sets: '3', reps: '15', description: 'Tricep lateral head.', tips: 'Keep elbows pinned.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0180.jpg' },
+    { id: 'overhead-ext', name: 'Overhead Extension', difficulty: 'Intermediate', equipment: 'Dumbbell', sets: '3', reps: '12', description: 'Tricep long head.', tips: 'Full stretch behind head.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0256.jpg' },
+    { id: 'conc-curl', name: 'Concentration Curl', difficulty: 'Beginner', equipment: 'Dumbbell', sets: '3', reps: '12', description: 'Bicep peak.', tips: 'Elbow against inner thigh.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0274.jpg' }
   ],
   core: [
-    {
-      id: 21,
-      name: 'Planks',
-      difficulty: 'Beginner',
-      equipment: 'Bodyweight',
-      description: 'Hold pushup position on forearms',
-      sets: '3-4',
-      reps: '30-60 seconds',
-      tips: 'Keep body straight, breathe normally'
-    },
-    {
-      id: 22,
-      name: 'Crunches',
-      difficulty: 'Beginner',
-      equipment: 'Bodyweight',
-      description: 'Lift shoulders off ground, lower back down',
-      sets: '3-4',
-      reps: '15-25',
-      tips: 'Slow and controlled, squeeze at top'
-    },
-    {
-      id: 23,
-      name: 'Russian Twists',
-      difficulty: 'Intermediate',
-      equipment: 'Bodyweight/Weight',
-      description: 'Sit leaning back, rotate torso side to side',
-      sets: '3',
-      reps: '20-30 total',
-      tips: 'Keep feet off ground, controlled rotation'
-    },
-    {
-      id: 24,
-      name: 'Leg Raises',
-      difficulty: 'Intermediate',
-      equipment: 'Bodyweight',
-      description: 'Lying down, raise legs to 90 degrees',
-      sets: '3-4',
-      reps: '12-15',
-      tips: 'Keep lower back pressed down, control'
-    }
+    { id: 'crunch', name: 'Crunches', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: '20', description: 'Upper abs.', tips: 'Exhale as you crunch.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0278.jpg' },
+    { id: 'leg-raise', name: 'Leg Raise', difficulty: 'Intermediate', equipment: 'Bodyweight', sets: '3', reps: '15', description: 'Lower abs.', tips: 'Keep lower back pressed to floor.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0391.jpg' },
+    { id: 'plank', name: 'Plank', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: '60s', description: 'Core stability.', tips: 'Squeeze glutes.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0649.jpg' },
+    { id: 'russian-twist', name: 'Russian Twist', difficulty: 'Intermediate', equipment: 'Bodyweight', sets: '3', reps: '20', description: 'Obliques.', tips: 'Rotate shoulders, not just hands.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0698.jpg' },
+    { id: 'm-climber', name: 'Mountain Climber', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: '30s', description: 'Cardio core.', tips: 'Keep hips low.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0562.jpg' },
+    { id: 'cable-crunch', name: 'Cable Crunch', difficulty: 'Intermediate', equipment: 'Cable', sets: '3', reps: '15', description: 'Weighted abs.', tips: 'Curl inwards, do not hinge at hips.', imageUrl: 'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/0124.jpg' }
   ]
-}
+};

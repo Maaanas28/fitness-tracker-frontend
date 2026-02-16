@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react' // <-- ADDED useEffect
 import { useNavigate } from 'react-router-dom'
 import { Calculator, ArrowLeft, Target, Flame, TrendingUp } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { 
   calculateBMI, 
   getBMICategory, 
@@ -22,6 +23,28 @@ function CalculatorPage() {
   })
   const [results, setResults] = useState(null)
 
+  // Load profile data on mount
+  useEffect(() => {
+    const savedProfile = localStorage.getItem('userProfile')
+    if (savedProfile) {
+      try {
+        const profile = JSON.parse(savedProfile)
+        setFormData(prev => ({
+          ...prev,
+          weight: profile.currentWeight?.toString() || '',
+          height: profile.height?.toString() || '',
+          age: profile.age?.toString() || '',
+          // Map fitness goal to calculator goal
+          goal: profile.fitnessGoal?.toLowerCase().includes('loss') ? 'lose' :
+                profile.fitnessGoal?.toLowerCase().includes('gain') ? 'gain' : 
+                profile.fitnessGoal?.toLowerCase().includes('strength') ? 'gain' : 'maintain'
+        }))
+      } catch (e) {
+        console.error('Failed to load profile:', e)
+      }
+    }
+  }, [])
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
@@ -33,58 +56,98 @@ function CalculatorPage() {
     const height = parseFloat(formData.height)
     const age = parseInt(formData.age)
 
-    // Calculate BMI
     const bmi = calculateBMI(weight, height)
     const bmiCategory = getBMICategory(parseFloat(bmi))
-
-    // Calculate BMR and TDEE
     const bmr = calculateBMR(weight, height, age, formData.gender)
     const tdee = calculateTDEE(bmr, formData.activityLevel)
-
-    // Calculate calorie goals
     const calorieGoal = calculateCalorieGoals(tdee, formData.goal)
-
-    // Calculate macros
     const macros = calculateMacros(calorieGoal.calories, formData.goal)
 
-    setResults({
+    const newResults = {
       bmi,
       bmiCategory,
       bmr: Math.round(bmr),
       tdee,
       calorieGoal,
       macros
-    })
+    }
+    
+    setResults(newResults)
+    
+    // ✅ SAVE TO LOCALSTORAGE for DietTracker to use
+    localStorage.setItem('userCalorieData', JSON.stringify({
+      tdee: tdee,
+      maintenanceCalories: tdee,
+      goalCalories: calorieGoal.calories,
+      goalType: formData.goal,
+      protein: macros.protein,
+      carbs: macros.carbs,
+      fats: macros.fats,
+      bmi: bmi,
+      bmr: Math.round(bmr)
+    }))
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
+    <div className="min-h-screen bg-black">
       {/* Header */}
-      <header className="bg-gray-800/50 backdrop-blur-sm p-6 flex items-center gap-4">
-        <button 
+      <motion.header 
+        className="bg-zinc-900/50 backdrop-blur-sm p-6 flex items-center gap-4 border-b border-zinc-800"
+        initial={{ y: -50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+      >
+        <motion.button 
           onClick={() => navigate('/dashboard')}
-          className="text-gray-400 hover:text-white transition-colors"
+          className="text-gray-600 hover:text-red-600 transition-colors"
+          whileHover={{ x: -3 }}
+          whileTap={{ scale: 0.95 }}
         >
           <ArrowLeft size={24} />
-        </button>
+        </motion.button>
         <div className="flex items-center gap-3">
-          <Calculator className="text-lime-500" size={32} />
+          <motion.div
+            animate={{ rotate: [0, 360] }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          >
+            <Calculator className="text-red-600" size={32} strokeWidth={2} />
+          </motion.div>
           <div>
-            <h1 className="text-2xl font-bold text-white">BMI & Calorie Calculator</h1>
-            <p className="text-gray-400 text-sm">Calculate your fitness metrics</p>
+            <h1 className="text-2xl font-black text-white">FITNESS CALCULATOR</h1>
+            <motion.div 
+              className="w-12 h-[2px] bg-red-600"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: 1 }}
+              transition={{ delay: 0.3 }}
+            />
           </div>
         </div>
-      </header>
+      </motion.header>
 
       <div className="max-w-6xl mx-auto p-6 grid lg:grid-cols-2 gap-6">
         {/* Input Form */}
-        <div className="bg-gray-800 p-8 rounded-2xl">
-          <h2 className="text-2xl font-bold text-white mb-6">Your Information</h2>
+        <motion.div 
+          className="bg-zinc-900 border border-zinc-800 p-8 relative overflow-hidden"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          whileHover={{ borderColor: '#dc2626' }}
+        >
+          <motion.div
+            className="absolute top-0 left-0 right-0 h-[2px] bg-red-600"
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ delay: 0.2 }}
+          />
           
-          <form onSubmit={handleCalculate} className="space-y-6">
+          <h2 className="text-xl font-black text-white mb-6 uppercase tracking-tight">Input Data</h2>
+          
+          <form onSubmit={handleCalculate} className="space-y-5">
             {/* Weight */}
-            <div>
-              <label className="text-gray-300 text-sm font-medium block mb-2">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <label className="text-gray-600 text-[10px] font-bold block mb-2 uppercase tracking-[0.15em]">
                 Weight (kg)
               </label>
               <input
@@ -94,13 +157,17 @@ function CalculatorPage() {
                 onChange={handleChange}
                 placeholder="70"
                 required
-                className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
+                className="w-full bg-black text-white px-4 py-3 border-b-2 border-zinc-800 focus:border-red-600 focus:outline-none transition-colors font-bold"
               />
-            </div>
+            </motion.div>
 
             {/* Height */}
-            <div>
-              <label className="text-gray-300 text-sm font-medium block mb-2">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <label className="text-gray-600 text-[10px] font-bold block mb-2 uppercase tracking-[0.15em]">
                 Height (cm)
               </label>
               <input
@@ -110,13 +177,17 @@ function CalculatorPage() {
                 onChange={handleChange}
                 placeholder="175"
                 required
-                className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
+                className="w-full bg-black text-white px-4 py-3 border-b-2 border-zinc-800 focus:border-red-600 focus:outline-none transition-colors font-bold"
               />
-            </div>
+            </motion.div>
 
             {/* Age */}
-            <div>
-              <label className="text-gray-300 text-sm font-medium block mb-2">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <label className="text-gray-600 text-[10px] font-bold block mb-2 uppercase tracking-[0.15em]">
                 Age (years)
               </label>
               <input
@@ -126,147 +197,227 @@ function CalculatorPage() {
                 onChange={handleChange}
                 placeholder="25"
                 required
-                className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
+                className="w-full bg-black text-white px-4 py-3 border-b-2 border-zinc-800 focus:border-red-600 focus:outline-none transition-colors font-bold"
               />
-            </div>
+            </motion.div>
 
             {/* Gender */}
-            <div>
-              <label className="text-gray-300 text-sm font-medium block mb-2">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <label className="text-gray-600 text-[10px] font-bold block mb-2 uppercase tracking-[0.15em]">
                 Gender
               </label>
               <select
                 name="gender"
                 value={formData.gender}
                 onChange={handleChange}
-                className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
+                className="w-full bg-black text-white px-4 py-3 border-b-2 border-zinc-800 focus:border-red-600 focus:outline-none transition-colors font-bold cursor-pointer"
               >
-                <option value="male">Male</option>
-                <option value="female">Female</option>
+                <option value="male">MALE</option>
+                <option value="female">FEMALE</option>
               </select>
-            </div>
+            </motion.div>
 
             {/* Activity Level */}
-            <div>
-              <label className="text-gray-300 text-sm font-medium block mb-2">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+            >
+              <label className="text-gray-600 text-[10px] font-bold block mb-2 uppercase tracking-[0.15em]">
                 Activity Level
               </label>
               <select
                 name="activityLevel"
                 value={formData.activityLevel}
                 onChange={handleChange}
-                className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
+                className="w-full bg-black text-white px-4 py-3 border-b-2 border-zinc-800 focus:border-red-600 focus:outline-none transition-colors font-bold cursor-pointer"
               >
-                <option value="sedentary">Sedentary (little or no exercise)</option>
-                <option value="light">Light (1-3 days/week)</option>
-                <option value="moderate">Moderate (3-5 days/week)</option>
-                <option value="active">Active (6-7 days/week)</option>
-                <option value="veryActive">Very Active (physical job)</option>
+                <option value="sedentary">SEDENTARY</option>
+                <option value="light">LIGHT</option>
+                <option value="moderate">MODERATE</option>
+                <option value="active">ACTIVE</option>
+                <option value="veryActive">VERY ACTIVE</option>
               </select>
-            </div>
+            </motion.div>
 
             {/* Goal */}
-            <div>
-              <label className="text-gray-300 text-sm font-medium block mb-2">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+            >
+              <label className="text-gray-600 text-[10px] font-bold block mb-2 uppercase tracking-[0.15em]">
                 Fitness Goal
               </label>
               <select
                 name="goal"
                 value={formData.goal}
                 onChange={handleChange}
-                className="w-full bg-gray-900 text-white px-4 py-3 rounded-lg border border-gray-700 focus:border-lime-500 focus:outline-none transition-colors"
+                className="w-full bg-black text-white px-4 py-3 border-b-2 border-zinc-800 focus:border-red-600 focus:outline-none transition-colors font-bold cursor-pointer"
               >
-                <option value="lose">Weight Loss</option>
-                <option value="maintain">Maintain Weight</option>
-                <option value="gain">Muscle Gain</option>
+                <option value="lose">WEIGHT LOSS</option>
+                <option value="maintain">MAINTAIN</option>
+                <option value="gain">MUSCLE GAIN</option>
               </select>
-            </div>
+            </motion.div>
 
-            {/* Submit Button */}
-            <button
+            {/* Submit */}
+            <motion.button
               type="submit"
-              className="w-full bg-lime-500 hover:bg-lime-600 text-black font-bold py-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 uppercase tracking-wider flex items-center justify-center gap-2 relative overflow-hidden group"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
             >
               <Calculator size={20} />
-              Calculate
-            </button>
+              <span>Calculate</span>
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent"
+                animate={{ x: ['-100%', '200%'] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 1 }}
+              />
+            </motion.button>
           </form>
-        </div>
+        </motion.div>
 
         {/* Results */}
         <div className="space-y-6">
           {results ? (
             <>
               {/* BMI Card */}
-              <div className="bg-gray-800 p-8 rounded-2xl">
+              <motion.div 
+                className="bg-zinc-900 border border-zinc-800 p-8 relative overflow-hidden"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ borderColor: '#dc2626' }}
+              >
+                <motion.div
+                  className="absolute top-0 left-0 right-0 h-[2px] bg-red-600"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                />
+                
                 <div className="flex items-center gap-3 mb-4">
-                  <Target className="text-lime-500" size={32} />
-                  <h3 className="text-xl font-bold text-white">Body Mass Index (BMI)</h3>
+                  <Target className="text-red-600" size={32} />
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">BMI</h3>
                 </div>
                 <div className="text-center py-6">
-                  <p className="text-6xl font-bold text-white mb-2">{results.bmi}</p>
-                  <p className={`text-xl font-semibold ${results.bmiCategory.color}`}>
+                  <motion.p 
+                    className="text-7xl font-black text-white mb-2"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200 }}
+                  >
+                    {results.bmi}
+                  </motion.p>
+                  <p className={`text-xl font-bold uppercase tracking-wider ${results.bmiCategory.color}`}>
                     {results.bmiCategory.category}
                   </p>
                 </div>
-                <div className="mt-6 bg-gray-900 p-4 rounded-lg">
-                  <p className="text-gray-400 text-sm">
-                    <span className="font-semibold text-white">BMR:</span> {results.bmr} calories/day
+                <div className="mt-6 bg-black p-4 space-y-2 border-l-2 border-red-600">
+                  <p className="text-gray-600 text-xs uppercase tracking-wider font-bold">
+                    BMR: <span className="text-white font-black">{results.bmr}</span> cal/day
                   </p>
-                  <p className="text-gray-400 text-sm mt-1">
-                    <span className="font-semibold text-white">TDEE:</span> {results.tdee} calories/day
+                  <p className="text-gray-600 text-xs uppercase tracking-wider font-bold">
+                    TDEE: <span className="text-white font-black">{results.tdee}</span> cal/day
                   </p>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Calorie Goal Card */}
-              <div className="bg-gray-800 p-8 rounded-2xl">
+              {/* Calorie Goal */}
+              <motion.div 
+                className="bg-zinc-900 border border-zinc-800 p-8 relative overflow-hidden"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 }}
+                whileHover={{ borderColor: '#dc2626' }}
+              >
+                <motion.div
+                  className="absolute top-0 left-0 right-0 h-[2px] bg-red-600"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ delay: 0.1 }}
+                />
+                
                 <div className="flex items-center gap-3 mb-4">
-                  <Flame className="text-orange-500" size={32} />
-                  <h3 className="text-xl font-bold text-white">Daily Calorie Goal</h3>
+                  <Flame className="text-red-600" size={32} />
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Daily Target</h3>
                 </div>
                 <div className="text-center py-6">
-                  <p className="text-5xl font-bold text-white mb-2">
+                  <motion.p 
+                    className="text-6xl font-black text-white mb-2"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                  >
                     {results.calorieGoal.calories}
-                  </p>
-                  <p className="text-lime-500 font-semibold">calories/day</p>
-                  <p className="text-gray-400 text-sm mt-3">
+                  </motion.p>
+                  <p className="text-red-600 font-bold uppercase tracking-wider">CALORIES/DAY</p>
+                  <p className="text-gray-600 text-sm mt-3 uppercase tracking-wider font-semibold">
                     {results.calorieGoal.description}
                   </p>
                 </div>
-              </div>
+              </motion.div>
 
-              {/* Macros Card */}
-              <div className="bg-gray-800 p-8 rounded-2xl">
+              {/* Macros */}
+              <motion.div 
+                className="bg-zinc-900 border border-zinc-800 p-8 relative overflow-hidden"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                whileHover={{ borderColor: '#dc2626' }}
+              >
+                <motion.div
+                  className="absolute top-0 left-0 right-0 h-[2px] bg-red-600"
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 1 }}
+                  transition={{ delay: 0.2 }}
+                />
+                
                 <div className="flex items-center gap-3 mb-4">
-                  <TrendingUp className="text-blue-500" size={32} />
-                  <h3 className="text-xl font-bold text-white">Daily Macros</h3>
+                  <TrendingUp className="text-red-600" size={32} />
+                  <h3 className="text-xl font-black text-white uppercase tracking-tight">Macros</h3>
                 </div>
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center bg-gray-900 p-4 rounded-lg">
-                    <span className="text-gray-300">Protein</span>
-                    <span className="text-xl font-bold text-white">{results.macros.protein}g</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-gray-900 p-4 rounded-lg">
-                    <span className="text-gray-300">Carbs</span>
-                    <span className="text-xl font-bold text-white">{results.macros.carbs}g</span>
-                  </div>
-                  <div className="flex justify-between items-center bg-gray-900 p-4 rounded-lg">
-                    <span className="text-gray-300">Fats</span>
-                    <span className="text-xl font-bold text-white">{results.macros.fats}g</span>
-                  </div>
+                  {[
+                    { label: 'Protein', value: results.macros.protein },
+                    { label: 'Carbs', value: results.macros.carbs },
+                    { label: 'Fats', value: results.macros.fats }
+                  ].map((macro, index) => (
+                    <motion.div 
+                      key={macro.label}
+                      className="flex justify-between items-center bg-black p-4 border-l-2 border-red-600"
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.3 + index * 0.1 }}
+                      whileHover={{ x: 5 }}
+                    >
+                      <span className="text-gray-400 uppercase tracking-wider text-sm font-bold">{macro.label}</span>
+                      <span className="text-2xl font-black text-white">{macro.value}g</span>
+                    </motion.div>
+                  ))}
                 </div>
-              </div>
+              </motion.div>
             </>
           ) : (
-            <div className="bg-gray-800 p-8 rounded-2xl h-full flex items-center justify-center">
+            <motion.div 
+              className="bg-zinc-900 border border-zinc-800 p-12 h-full flex items-center justify-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
               <div className="text-center">
-                <Calculator className="text-gray-600 mx-auto mb-4" size={64} />
-                <p className="text-gray-400 text-lg">
-                  Fill in your information and click calculate<br />to see your results
+                <Calculator className="text-zinc-700 mx-auto mb-4" size={64} strokeWidth={1.5} />
+                <p className="text-gray-600 text-lg uppercase tracking-wider font-bold">
+                  Enter Data to Calculate
                 </p>
               </div>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>
