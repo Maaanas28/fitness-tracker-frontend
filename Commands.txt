@@ -1,0 +1,9 @@
+# Required Installations
+npm install jspdf jspdf-autotable: Run in terminal to download the workout plan in the form of pdf
+npm install html2canvas
+npm install react-hot-toast
+
+# Git Commands
+git add .
+git commit -m "message"
+git push
