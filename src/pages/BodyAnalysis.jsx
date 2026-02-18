@@ -22,12 +22,12 @@ function BodyAnalysis() {
   }, [savedAnalyses])
 
   const bodyAreas = [
-    { id: 'chest', name: 'Chest', icon: '💪', color: 'from-amber-500 to-orange-600' },
-    { id: 'back', name: 'Back', icon: '🦾', color: 'from-blue-500 to-cyan-600' },
-    { id: 'shoulders', name: 'Shoulders', icon: '🏋️', color: 'from-purple-500 to-violet-600' },
-    { id: 'arms', name: 'Arms', icon: '💪', color: 'from-pink-500 to-rose-600' },
-    { id: 'core', name: 'Core/Abs', icon: '🎯', color: 'from-emerald-500 to-teal-600' },
-    { id: 'legs', name: 'Legs', icon: '🦵', color: 'from-red-500 to-amber-600' }
+    { id: 'chest', name: 'Chest', icon: '�??�', color: 'from-amber-500 to-orange-600' },
+    { id: 'back', name: 'Back', icon: '�?��', color: 'from-blue-500 to-cyan-600' },
+    { id: 'shoulders', name: 'Shoulders', icon: '�?�?️', color: 'from-purple-500 to-violet-600' },
+    { id: 'arms', name: 'Arms', icon: '�??�', color: 'from-pink-500 to-rose-600' },
+    { id: 'core', name: 'Core/Abs', icon: '�??�', color: 'from-emerald-500 to-teal-600' },
+    { id: 'legs', name: 'Legs', icon: '�?��', color: 'from-red-500 to-amber-600' }
   ]
 
   const recommendations = {
@@ -118,7 +118,7 @@ function BodyAnalysis() {
       setSavedAnalyses(prev => [newAnalysis, ...prev])
       setAnalysisName('')
       // Show success message
-      alert('✓ Analysis saved successfully!')
+      alert('âœ“ Analysis saved successfully!')
     }
   }
 
@@ -536,3 +536,4 @@ function BodyAnalysis() {
 }
 
 export default BodyAnalysis
+

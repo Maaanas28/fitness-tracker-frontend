@@ -241,7 +241,7 @@ function RestTimer() {
 
         {/* Tips */}
         <div className="bg-gray-800 p-6 rounded-2xl">
-          <h3 className="text-xl font-bold text-white mb-4">💡 Rest Period Guidelines</h3>
+          <h3 className="text-xl font-bold text-white mb-4">�??� Rest Period Guidelines</h3>
           <div className="space-y-3">
             <div className="bg-lime-500/10 border border-lime-500/30 p-4 rounded-lg">
               <p className="text-lime-500 font-semibold mb-1">Strength Training (Heavy)</p>

@@ -9,7 +9,7 @@ import {
   calculateTDEE, 
   calculateCalorieGoals,
   calculateMacros 
-} from '../utils/Calculations'
+} from '../utils/calculations'
 
 function CalculatorPage() {
   const navigate = useNavigate()
@@ -74,7 +74,7 @@ function CalculatorPage() {
     
     setResults(newResults)
     
-    // ✅ SAVE TO LOCALSTORAGE for DietTracker to use
+    // âœ… SAVE TO LOCALSTORAGE for DietTracker to use
     localStorage.setItem('userCalorieData', JSON.stringify({
       tdee: tdee,
       maintenanceCalories: tdee,

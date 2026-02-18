@@ -138,12 +138,12 @@ function WaterTracker() {
             </div>
             {remaining > 0 && (
               <p className="text-blue-400 text-sm mt-3 text-center">
-                💧 Drink {remaining}ml more to reach your goal!
+                �??� Drink {remaining}ml more to reach your goal!
               </p>
             )}
             {waterIntake >= dailyGoal && (
               <p className="text-lime-500 text-sm mt-3 text-center font-semibold">
-                🎉 Goal achieved! Great job staying hydrated!
+                �??? Goal achieved! Great job staying hydrated!
               </p>
             )}
           </div>
@@ -179,7 +179,7 @@ function WaterTracker() {
 
         {/* Tips Card */}
         <div className="bg-gray-800 p-6 rounded-2xl">
-          <h3 className="text-xl font-bold text-white mb-4">💡 Hydration Tips</h3>
+          <h3 className="text-xl font-bold text-white mb-4">�??� Hydration Tips</h3>
           <div className="space-y-3">
             <div className="flex items-start gap-3">
               <div className="bg-blue-500/20 p-2 rounded-lg mt-1">

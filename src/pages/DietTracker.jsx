@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, Plus, Trash2, Radio, BarChart3, Flame, Database, Activity,
   Sparkles, ChefHat, X

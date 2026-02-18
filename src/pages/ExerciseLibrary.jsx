@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, Search, Dumbbell, Target, Zap, 
   TrendingUp, Activity, Heart, Filter, X, Play, ChevronRight, Plus,
-  Repeat, Star, Sparkles // <-- ADDED Sparkles icon
+  Repeat, Star, Sparkles
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { generateWithGemini } from '../utils/gemini'
@@ -105,8 +105,8 @@ function ExerciseLibrary() {
   }, [favorites])
 
   useEffect(() => {
-  setTimeout(() => setIsLoading(false), 800)
-}, [])
+    setTimeout(() => setIsLoading(false), 800)
+  }, [])
 
   const categories = [
     { id: 'chest', name: 'Chest', icon: Heart, color: 'red' },
@@ -123,16 +123,16 @@ function ExerciseLibrary() {
   const allDifficulties = ['Beginner', 'Intermediate', 'Advanced']
 
   const toggleFavorite = (exerciseId) => {
-  setFavorites(prev => {
-    if (prev.includes(exerciseId)) {
-      toast.success('Removed from favorites', { icon: '⭐' })
-      return prev.filter(id => id !== exerciseId)
-    } else {
-      toast.success('Added to favorites!', { icon: '⭐' })
-      return [...prev, exerciseId]
-    }
-  })
-}
+    setFavorites(prev => {
+      if (prev.includes(exerciseId)) {
+        toast.success('Removed from favorites', { icon: '⭐' })
+        return prev.filter(id => id !== exerciseId)
+      } else {
+        toast.success('Added to favorites!', { icon: '⭐' })
+        return [...prev, exerciseId]
+      }
+    })
+  }
 
   // Check if exercise is favorite
   const isFavorite = (exerciseId) => favorites.includes(exerciseId)

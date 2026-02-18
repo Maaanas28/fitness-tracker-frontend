@@ -1,0 +1,224 @@
+﻿
+> fitness-tracker-frontend@0.0.0 lint
+> eslint .
+
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\components\EmptyState.jsx
+  2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  5:9   error  'Icon' is defined but never used                                               no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\components\LoadingSkeleton.jsx
+  2:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\context\ThemeContext.jsx
+  6:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\BodyAnalysis.jsx
+  4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\CalculatorPage.jsx
+   4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             no-unused-vars
+  32:9   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  30 |       try {
+  31 |         const profile = JSON.parse(savedProfile)
+> 32 |         setFormData(prev => ({
+     |         ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  33 |           ...prev,
+  34 |           weight: profile.currentWeight?.toString() || '',
+  35 |           height: profile.height?.toString() || '',  react-hooks/set-state-in-effect
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\Dashboard.jsx
+   14:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                     no-unused-vars
+  173:25  error  'setWeeklySummary' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  190:14  error  'err' is defined but never used                                                                   no-unused-vars
+  466:52  error  'i' is defined but never used                                                                     no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\DietTracker.jsx
+   6:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                      no-unused-vars
+  36:18  error  'CALORIE_GOAL' is not defined                                                                      no-undef
+  47:26  error  'setNutritionGoals' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+  78:17  error  'setMeals' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u           no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\ExerciseLibrary.jsx
+  8:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\LoginPage.jsx
+  4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\ProfilePage.jsx
+  4:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\ProgressPage.jsx
+    7:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   no-unused-vars
+  266:38  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  264 |                     domain={[78, 86]}
+  265 |                   />
+> 266 |                   <Tooltip content={<CustomTooltip />} cursor={{ fill: '#ef444410' }} />
+      |                                      ^^^^^^^^^^^^^ This component is created during render
+  267 |                   <ReferenceLine y={80} stroke="#6b7280" strokeDasharray="3:3" label={{ value: 'Goal: 80kg', position: 'insideTopLeft', fill: '#6b7280', fontSize: 11 }} />
+  268 |                   
+  269 |                   <Area 
+
+  74 |   ]
+  75 |
+> 76 |   const CustomTooltip = ({ active, payload, label }) => {
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 77 |     if (!active || !payload?.length) return null
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 78 |     return (
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 93 |     )
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 94 |   }
+     | ^^^^ The component is created during render here
+  95 |
+  96 |   return (
+  97 |     <div className="min-h-screen bg-gradient-to-br from-[#0a0205] to-[#11050a] text-white font-sans overflow-x-hidden relative">       react-hooks/static-components
+  518:38  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  516 |                     tick={{ fill: '#aaa' }}
+  517 |                   />
+> 518 |                   <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f59e0b10' }} />
+      |                                      ^^^^^^^^^^^^^ This component is created during render
+  519 |                   <ReferenceLine y={2500} stroke="#6b7280" strokeDasharray="3:3" label={{ value: 'Target', position: 'insideTopRight', fill: '#6b7280', fontSize: 11 }} />
+  520 |                   
+  521 |                   <Area 
+
+  74 |   ]
+  75 |
+> 76 |   const CustomTooltip = ({ active, payload, label }) => {
+     |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 77 |     if (!active || !payload?.length) return null
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 78 |     return (
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 93 |     )
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 94 |   }
+     | ^^^^ The component is created during render here
+  95 |
+  96 |   return (
+  97 |     <div className="min-h-screen bg-gradient-to-br from-[#0a0205] to-[#11050a] text-white font-sans overflow-x-hidden relative">  react-hooks/static-components
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\RestTimer.jsx
+  11:9   error  'audioRef' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       no-unused-vars
+  22:31  error  Error: Cannot access variable before it is declared
+
+`playSound` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+  20 |           if (prevTime <= 1) {
+  21 |             setIsRunning(false)
+> 22 |             if (soundEnabled) playSound()
+     |                               ^^^^^^^^^ `playSound` accessed before it is declared
+  23 |             return 0
+  24 |           }
+  25 |           return prevTime - 1
+
+  39 |   }, [isRunning, time, soundEnabled])
+  40 |
+> 41 |   const playSound = () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 42 |     // Create beep sound using Web Audio API
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 43 |     const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 57 |     oscillator.stop(audioContext.currentTime + 0.5)
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 58 |   }
+     | ^^^^ `playSound` is declared here
+  59 |
+  60 |   const toggleTimer = () => {
+  61 |     setIsRunning(!isRunning)  react-hooks/immutability
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\WaterTracker.jsx
+  18:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  16 |
+  17 |     if (savedDate === today && saved) {
+> 18 |       setWaterIntake(parseInt(saved))
+     |       ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  19 |     } else {
+  20 |       // Reset for new day
+  21 |       setWaterIntake(0)  react-hooks/set-state-in-effect
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\WorkoutPlanGenerator.jsx
+  7:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\pages\WorkoutTracker.jsx
+    8:10  error  'motion' is defined but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              no-unused-vars
+   90:16  error  'error' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          no-unused-vars
+  192:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  190 |       interval = setInterval(() => setTimer(timer - 1), 1000)
+  191 |     } else if (timer === 0) {
+> 192 |       setIsTimerActive(false)
+      |       ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  193 |       clearInterval(interval)
+  194 |     }
+  195 |     return () => clearInterval(interval)                                                                                                                                                                                                                                react-hooks/set-state-in-effect
+  760:46  error  Error: Cannot create components during render
+
+Components created during render will reset their state each time they are created. Declare components outside of render.
+
+  758 |                             width={45}
+  759 |                           />
+> 760 |                           <Tooltip content={<CustomTooltip />} cursor={{ fill: '#334155', opacity: 0.5 }} />
+      |                                              ^^^^^^^^^^^^^ This component is created during render
+  761 |                           
+  762 |                           <Line 
+  763 |                             yAxisId="left" 
+
+  402 |   const completionRate = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
+  403 |
+> 404 |   const CustomTooltip = ({ active, payload, label }) => {
+      |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 405 |     if (!active || !payload?.length) return null
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 406 |     return (
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 426 |     )
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 427 |   }
+      | ^^^^ The component is created during render here
+  428 |
+  429 |   if (isLoading) {
+  430 |     return (  react-hooks/static-components
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\utils\exportPDF.js
+  23:27  error  'index' is defined but never used  no-unused-vars
+
+C:\Users\lkman\OneDrive\Desktop\Ai fitness tracker\fitness-tracker-frontend\src\utils\gemini.js
+   89:14  error  React Hook "useFallback" is called in function "generateWithGemini" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
+   97:14  error  React Hook "useFallback" is called in function "generateWithGemini" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
+  111:12  error  React Hook "useFallback" is called in function "generateWithGemini" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use"  react-hooks/rules-of-hooks
+
+Γ£û 33 problems (33 errors, 0 warnings)
+

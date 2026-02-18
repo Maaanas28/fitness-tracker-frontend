@@ -60,17 +60,17 @@ function ProgressPage() {
   const stats = [
     { label: 'Weight Lost', value: '4.5 kg', icon: TrendingUp, color: 'from-red-500 to-rose-600', delta: '+0.5kg this week' },
     { label: 'Total Workouts', value: '87', icon: Target, color: 'from-blue-500 to-cyan-600', delta: '+3 this week' },
-    { label: 'Current Streak', value: '12 days', icon: Flame, color: 'from-orange-500 to-amber-600', delta: '🔥 on fire!' },
+    { label: 'Current Streak', value: '12 days', icon: Flame, color: 'from-orange-500 to-amber-600', delta: '�??� on fire!' },
     { label: 'Avg Calories', value: '2,350', icon: Calendar, color: 'from-purple-500 to-pink-600', delta: 'in target zone' },
   ]
 
   const achievements = [
-    { emoji: '🔥', title: '30 Day Streak', desc: 'Worked out for 30 days straight', progress: 100, unlocked: true },
-    { emoji: '💪', title: '100 Workouts', desc: 'Completed 100 total workouts', progress: 87, unlocked: false },
-    { emoji: '⚡', title: 'Goal Crusher', desc: 'Reached your weight goal', progress: 94, unlocked: false },
-    { emoji: '🏆', title: 'Macro Master', desc: 'Perfect nutrition for 7 days', progress: 65, unlocked: false },
-    { emoji: '🌙', title: 'Night Owl', desc: 'Worked out after midnight 10x', progress: 40, unlocked: false },
-    { emoji: '💯', title: 'Perfect Week', desc: 'Hit all targets for 7 days', progress: 28, unlocked: false },
+    { emoji: '�??�', title: '30 Day Streak', desc: 'Worked out for 30 days straight', progress: 100, unlocked: true },
+    { emoji: '�??�', title: '100 Workouts', desc: 'Completed 100 total workouts', progress: 87, unlocked: false },
+    { emoji: 'âš¡', title: 'Goal Crusher', desc: 'Reached your weight goal', progress: 94, unlocked: false },
+    { emoji: '�?�?', title: 'Macro Master', desc: 'Perfect nutrition for 7 days', progress: 65, unlocked: false },
+    { emoji: '�???', title: 'Night Owl', desc: 'Worked out after midnight 10x', progress: 40, unlocked: false },
+    { emoji: '�??�', title: 'Perfect Week', desc: 'Hit all targets for 7 days', progress: 28, unlocked: false },
   ]
 
   const CustomTooltip = ({ active, payload, label }) => {

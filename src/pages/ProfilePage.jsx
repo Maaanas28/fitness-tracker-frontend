@@ -22,7 +22,7 @@ function ProfilePage() {
   })
   const [tempData, setTempData] = useState({...profileData})
 
-  // ✅ CORRECT: useEffect inside the component, after state declarations
+  // âœ… CORRECT: useEffect inside the component, after state declarations
   useEffect(() => {
     localStorage.setItem('userProfile', JSON.stringify(profileData))
   }, [profileData])
@@ -129,13 +129,13 @@ function ProfilePage() {
                 
                 <div className="flex flex-wrap justify-center lg:justify-start gap-3">
                   <span className="px-5 py-2 bg-amber-500/10 text-amber-300 font-medium rounded-full">
-                    🎯 {profileData.fitnessGoal}
+                    �??� {profileData.fitnessGoal}
                   </span>
                   <span className="px-5 py-2 bg-blue-500/10 text-blue-300 font-medium rounded-full">
-                    💪 {profileData.activityLevel}
+                    �??� {profileData.activityLevel}
                   </span>
                   <span className="px-5 py-2 bg-emerald-500/10 text-emerald-300 font-medium rounded-full">
-                    📅 Since {new Date(profileData.joinDate).getFullYear()}
+                    �??? Since {new Date(profileData.joinDate).getFullYear()}
                   </span>
                 </div>
                 

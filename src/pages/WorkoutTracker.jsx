@@ -48,7 +48,7 @@ const VolumeCard = ({ currentWorkout }) => {
         <span className="text-2xl text-white/80">kg</span>
       </div>
       <p className="text-white/60 text-xs mt-2">
-        {completedSets} sets completed • {currentWorkout.length} exercises
+        {completedSets} sets completed • ? • {currentWorkout.length} exercises
       </p>
     </motion.div>
   )
@@ -247,7 +247,7 @@ function WorkoutTracker() {
       return
     }
     
-    // Calculate total volume (weight × reps for all sets)
+    // Calculate total volume (weight • ? reps for all sets)
     const totalVolume = currentWorkout.reduce((sum, exercise) => {
       const exerciseVolume = exercise.sets.reduce((setSum, set) => {
         return setSum + (set.weight * set.reps)
@@ -277,7 +277,7 @@ function WorkoutTracker() {
     setWorkoutHistory([workout, ...workoutHistory])
     setCurrentWorkout([])
     
-    toast.success(`✓ Workout Saved!\nVolume: ${totalVolume.toLocaleString()}kg`, {
+    toast.success(`âœ“ Workout Saved!\nVolume: ${totalVolume.toLocaleString()}kg`, {
       duration: 5000,
     })
     setActiveTab('analytics')
@@ -687,7 +687,7 @@ function WorkoutTracker() {
                   whileTap={{ scale: 0.98 }}
                   className="w-full bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 py-5 rounded-2xl font-bold text-lg text-white shadow-md shadow-green-500/20 transition-all mt-2"
                 >
-                  ✓ Finish Workout & Save
+                  âœ“ Finish Workout & Save
                   <ChevronRight size={18} className="inline ml-2" />
                 </motion.button>
               )}
@@ -908,7 +908,7 @@ function WorkoutTracker() {
                             <div>
                               <p className="font-medium text-lg text-slate-100">{h.date}</p>
                               <p className="text-xs text-slate-500 mt-0.5">
-                                {h.exercises} exercises • {h.completedSets} sets • {h.volume.toLocaleString()}kg
+                                {h.exercises} exercises • ? • {h.completedSets} sets • ? • {h.volume.toLocaleString()}kg
                               </p>
                             </div>
                           </div>
