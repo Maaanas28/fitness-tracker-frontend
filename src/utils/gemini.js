@@ -1,7 +1,13 @@
 // src/utils/gemini.js
-// ⚠️ Move API key to .env file: VITE_GEMINI_API_KEY=your_key_here
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAEBkB3crMQBUMPiNixOF5hLPi16YWBGQc'
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`
+// ✅ Using environment variable only - no fallback
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+
+// Optional: Add debug check
+if (!GEMINI_API_KEY) {
+  console.error('❌ CRITICAL: VITE_GEMINI_API_KEY not found in .env file')
+}
+
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
 
 // ============================================================
 // FALLBACK DATA (used only when API fails)
@@ -69,6 +75,12 @@ const FALLBACK_MEALS = {
 // ============================================================
 export const generateWithGemini = async (prompt, type = 'workout') => {
   console.log(`🤖 Calling Gemini API (type: ${type})...`)
+
+  // ✅ Check if API key exists
+  if (!GEMINI_API_KEY) {
+    console.error('❌ VITE_GEMINI_API_KEY not found in .env file')
+    return useFallback(prompt, type)
+  }
 
   try {
     const response = await fetch(GEMINI_URL, {

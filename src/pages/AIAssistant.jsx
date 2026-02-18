@@ -7,9 +7,16 @@ import {
   RotateCcw, Activity, Flame, Target, Brain
 } from 'lucide-react'
 
-// ─── CONFIG ───────────────────────────────────────────────────────────────────
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAEBkB3crMQBUMPiNixOF5hLPi16YWBGQc'
-const GEMINI_STREAM_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`
+// ─── FIXED CONFIG ───────────────────────────────────────────────────────────
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+
+// Optional: Add debug check
+if (!GEMINI_API_KEY) {
+  console.error('❌ Missing VITE_GEMINI_API_KEY in .env file')
+}
+
+// FIXED: Using gemini-2.0-flash (latest model)
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
 
 // ─── LOAD ALL USER DATA FROM LOCALSTORAGE ─────────────────────────────────────
 function getUserContext() {
@@ -42,7 +49,7 @@ function getUserContext() {
 
   return {
     profile,
-    workoutHistory: workoutHistory.slice(0, 10), // last 10
+    workoutHistory: workoutHistory.slice(0, 10),
     currentWorkout,
     todayLog,
     calorieData,
@@ -168,13 +175,10 @@ const TypingIndicator = () => (
 const MessageBubble = ({ message }) => {
   const isUser = message.role === 'user'
 
-  // Simple markdown renderer
   const renderContent = (text) => {
     const lines = text.split('\n')
     return lines.map((line, i) => {
-      // Bold
       line = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      // Bullet points
       if (line.startsWith('- ') || line.startsWith('• ')) {
         return (
           <div key={i} className="flex gap-2 my-0.5">
@@ -183,7 +187,6 @@ const MessageBubble = ({ message }) => {
           </div>
         )
       }
-      // Numbered list
       if (/^\d+\.\s/.test(line)) {
         const num = line.match(/^(\d+)\./)[1]
         return (
@@ -193,9 +196,7 @@ const MessageBubble = ({ message }) => {
           </div>
         )
       }
-      // Empty line
       if (line.trim() === '') return <div key={i} className="h-2" />
-      // Normal line
       return <div key={i} dangerouslySetInnerHTML={{ __html: line }} />
     })
   }
@@ -206,7 +207,6 @@ const MessageBubble = ({ message }) => {
       animate={{ opacity: 1, y: 0 }}
       className={`flex items-end gap-3 mb-6 ${isUser ? 'flex-row-reverse' : ''}`}
     >
-      {/* Avatar */}
       <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
         isUser
           ? 'bg-gradient-to-br from-slate-600 to-slate-700'
@@ -215,7 +215,6 @@ const MessageBubble = ({ message }) => {
         {isUser ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
       </div>
 
-      {/* Bubble */}
       <div className={`max-w-[80%] px-5 py-4 rounded-2xl text-sm leading-relaxed ${
         isUser
           ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-br-sm'
@@ -226,13 +225,6 @@ const MessageBubble = ({ message }) => {
         ) : (
           <div className="space-y-0.5">
             {renderContent(message.content)}
-            {message.streaming && (
-              <motion.span
-                animate={{ opacity: [1, 0] }}
-                transition={{ duration: 0.5, repeat: Infinity }}
-                className="inline-block w-0.5 h-4 bg-amber-400 ml-0.5 align-middle"
-              />
-            )}
           </div>
         )}
       </div>
@@ -245,19 +237,16 @@ export default function AIAssistant() {
   const navigate = useNavigate()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(true)
   const [userCtx] = useState(() => getUserContext())
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
-  const abortRef = useRef(null)
 
-  // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Welcome message on mount
   useEffect(() => {
     const name = userCtx.profile?.name
     const hasData = userCtx.totalWorkouts > 0 || userCtx.todayCalories > 0
@@ -267,25 +256,33 @@ export default function AIAssistant() {
       : `Hey! I'm your AI personal trainer. ${hasData ? `I can see your fitness data — ask me anything about your progress, workouts, or nutrition.` : `Set up your profile to get personalized advice, or just ask me anything about fitness!`}`
 
     setMessages([{ id: 1, role: 'assistant', content: welcome }])
-  }, [])
+  }, [userCtx])
 
-  // ── STREAMING GEMINI CALL ──────────────────────────────────────────────────
+  // ── FIXED: Non-streaming Gemini call ──────────────────────────────────────
   const sendMessage = useCallback(async (userText) => {
-    if (!userText.trim() || isStreaming) return
+    if (!userText.trim() || isLoading) return
+    
+    // FIXED: Check for API key
+    if (!GEMINI_API_KEY) {
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        role: 'assistant',
+        content: '❌ **API Key Missing**\n\nPlease add your Gemini API key to the `.env` file:\n```\nVITE_GEMINI_API_KEY=your_key_here\n```\n\nThen restart the dev server.'
+      }])
+      return
+    }
 
     const userMsg = { id: Date.now(), role: 'user', content: userText }
     const assistantId = Date.now() + 1
 
     setMessages(prev => [...prev, userMsg])
     setInput('')
-    setIsStreaming(true)
+    setIsLoading(true)
     setShowQuickActions(false)
 
-    // Build conversation history for Gemini
     const systemPrompt = buildSystemPrompt(userCtx)
     const history = [...messages, userMsg]
 
-    // Build contents array (Gemini format)
     const contents = [
       { role: 'user', parts: [{ text: systemPrompt + '\n\nUser: ' + history[0]?.content }] },
       ...history.slice(1).map(m => ({
@@ -294,7 +291,6 @@ export default function AIAssistant() {
       }))
     ]
 
-    // Add streaming assistant message placeholder
     setMessages(prev => [...prev, {
       id: assistantId,
       role: 'assistant',
@@ -303,90 +299,42 @@ export default function AIAssistant() {
     }])
 
     try {
-      abortRef.current = new AbortController()
-
-      const response = await fetch(GEMINI_STREAM_URL, {
+      // FIXED: Using standard generateContent (not streaming)
+      const response = await fetch(GEMINI_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: abortRef.current.signal,
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.8,
-            maxOutputTokens: 1024,
-          }
-        })
+        body: JSON.stringify({ contents })
       })
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`)
+        const errorText = await response.text()
+        throw new Error(`API error: ${response.status} - ${errorText}`)
       }
 
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let fullText = ''
+      // FIXED: Simple JSON response parsing
+      const data = await response.json()
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.'
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        const lines = chunk.split('\n')
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim()
-            if (data === '[DONE]') continue
-            try {
-              const json = JSON.parse(data)
-              const text = json?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-              if (text) {
-                fullText += text
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantId
-                    ? { ...m, content: fullText, streaming: true }
-                    : m
-                ))
-              }
-            } catch { /* skip malformed chunks */ }
-          }
-        }
-      }
-
-      // Mark streaming done
       setMessages(prev => prev.map(m =>
-        m.id === assistantId ? { ...m, streaming: false } : m
+        m.id === assistantId
+          ? { ...m, content: text, streaming: false }
+          : m
       ))
 
     } catch (err) {
-      if (err.name === 'AbortError') return
-
       console.error('Gemini error:', err)
+      
+      const fallback = `I'm having trouble connecting right now. Based on your data:\n\n- You've completed **${userCtx.totalWorkouts} workouts**\n- Total volume: **${userCtx.totalVolume.toLocaleString()}kg**\n- Today's calories: **${userCtx.todayCalories}**\n\nPlease try again in a moment.`
 
-      // Fallback response using user data
-      const fallback = generateFallback(userText, userCtx)
       setMessages(prev => prev.map(m =>
         m.id === assistantId
           ? { ...m, content: fallback, streaming: false }
           : m
       ))
     } finally {
-      setIsStreaming(false)
+      setIsLoading(false)
     }
-  }, [messages, isStreaming, userCtx])
-
-  // Fallback when API fails
-  function generateFallback(prompt, ctx) {
-    const p = prompt.toLowerCase()
-    if (p.includes('workout') || p.includes('train') || p.includes('exercise')) {
-      return `Based on your data (${ctx.totalWorkouts} workouts, ${ctx.totalVolume.toLocaleString()}kg total volume), here's what I'd recommend:\n\n**Focus on progressive overload** — if you've been hitting the same weights, bump them up by 2.5-5% next session.\n\n**Your recent training suggests** you're ready for more intensity. Consider adding a 4th set to your main compound lifts.\n\n*Note: AI is temporarily offline — this is a data-based suggestion.*`
-    }
-    if (p.includes('eat') || p.includes('food') || p.includes('calorie') || p.includes('nutrition')) {
-      const remaining = (ctx.calorieData?.goalCalories || 2500) - ctx.todayCalories
-      return `You've had **${ctx.todayCalories} calories** and **${ctx.todayProtein}g protein** today.\n\n${remaining > 0 ? `You have **${remaining} calories** left to hit your goal.` : `You've hit your calorie target for today!`}\n\n**Quick suggestion:** ${ctx.todayProtein < 150 ? 'Protein is low — add a chicken breast or protein shake.' : 'Protein is on track! Focus on hitting your calorie goal with complex carbs.'}\n\n*Note: AI is temporarily offline — this is based on your logged data.*`
-    }
-    return `I can see you've completed **${ctx.totalWorkouts} workouts** and lifted **${ctx.totalVolume.toLocaleString()}kg** total. You're making progress!\n\n**Today:** ${ctx.todayCalories} calories consumed.\n\nUnfortunately the AI connection is temporarily down. Try again in a moment!\n\n*Tip: Make sure your VITE_GEMINI_API_KEY is set in your .env file.*`
-  }
+  }, [messages, isLoading, userCtx])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -407,11 +355,8 @@ export default function AIAssistant() {
       content: name ? `Fresh start, ${name}! What do you want to work on?` : 'Fresh start! What do you want to work on?'
     }])
     setShowQuickActions(true)
-    if (abortRef.current) abortRef.current.abort()
-    setIsStreaming(false)
   }
 
-  // ── STATS BAR ──────────────────────────────────────────────────────────────
   const stats = [
     { label: 'Workouts', value: userCtx.totalWorkouts, icon: Dumbbell, color: 'text-amber-400' },
     { label: 'Volume', value: `${Math.round(userCtx.totalVolume / 1000)}t`, icon: TrendingUp, color: 'text-blue-400' },
@@ -422,7 +367,6 @@ export default function AIAssistant() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-black text-slate-100 flex flex-col">
 
-      {/* ── HEADER ── */}
       <header className="flex-shrink-0 border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm px-6 py-4 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-4">
           <button
@@ -438,8 +382,10 @@ export default function AIAssistant() {
             <div>
               <h1 className="font-bold text-white tracking-tight">AI Trainer</h1>
               <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                <span className="text-xs text-slate-500">Powered by Gemini • Knows your data</span>
+                <div className={`w-1.5 h-1.5 ${!GEMINI_API_KEY ? 'bg-red-400' : 'bg-green-400'} rounded-full animate-pulse`} />
+                <span className="text-xs text-slate-500">
+                  {!GEMINI_API_KEY ? 'API Key Missing' : 'Powered by Gemini • Knows your data'}
+                </span>
               </div>
             </div>
           </div>
@@ -454,7 +400,6 @@ export default function AIAssistant() {
         </button>
       </header>
 
-      {/* ── YOUR DATA STATS BAR ── */}
       <div className="flex-shrink-0 px-6 py-3 border-b border-slate-800/50 bg-slate-900/40">
         <div className="flex gap-6 overflow-x-auto pb-1 max-w-4xl mx-auto">
           {stats.map((stat, i) => (
@@ -471,22 +416,17 @@ export default function AIAssistant() {
         </div>
       </div>
 
-      {/* ── MESSAGES ── */}
       <div className="flex-1 overflow-y-auto px-4 py-6 max-w-4xl mx-auto w-full">
-
-        {/* Messages */}
         {messages.map(msg => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {/* Typing indicator when loading (before streaming starts) */}
-        {isStreaming && messages[messages.length - 1]?.content === '' && (
+        {isLoading && messages[messages.length - 1]?.content === '' && (
           <TypingIndicator />
         )}
 
-        {/* Quick action buttons */}
         <AnimatePresence>
-          {showQuickActions && messages.length <= 1 && (
+          {showQuickActions && messages.length <= 2 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -519,7 +459,6 @@ export default function AIAssistant() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* ── INPUT BAR ── */}
       <div className="flex-shrink-0 border-t border-slate-800 bg-slate-900/80 backdrop-blur-sm px-4 py-4">
         <div className="max-w-4xl mx-auto flex gap-3 items-end">
           <div className="flex-1 relative">
@@ -528,9 +467,9 @@ export default function AIAssistant() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask me anything about your training, nutrition, recovery..."
+              placeholder={!GEMINI_API_KEY ? "⚠️ Add API key in .env file first" : "Ask me anything about your training, nutrition, recovery..."}
               rows={1}
-              disabled={isStreaming}
+              disabled={isLoading || !GEMINI_API_KEY}
               className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-slate-500 resize-none focus:outline-none transition-all disabled:opacity-50"
               style={{ maxHeight: '120px' }}
               onInput={e => {
@@ -540,28 +479,18 @@ export default function AIAssistant() {
             />
           </div>
 
-          {isStreaming ? (
-            <button
-              onClick={() => { abortRef.current?.abort(); setIsStreaming(false) }}
-              className="w-12 h-12 bg-red-600 hover:bg-red-700 rounded-2xl flex items-center justify-center transition-colors flex-shrink-0"
-              title="Stop generating"
-            >
-              <X size={18} className="text-white" />
-            </button>
-          ) : (
-            <motion.button
-              onClick={() => sendMessage(input)}
-              disabled={!input.trim()}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-slate-700 disabled:to-slate-700 rounded-2xl flex items-center justify-center transition-all flex-shrink-0 shadow-lg shadow-amber-500/20 disabled:shadow-none"
-            >
-              <Send size={18} className="text-white" />
-            </motion.button>
-          )}
+          <motion.button
+            onClick={() => sendMessage(input)}
+            disabled={!input.trim() || isLoading || !GEMINI_API_KEY}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-slate-700 disabled:to-slate-700 rounded-2xl flex items-center justify-center transition-all flex-shrink-0 shadow-lg shadow-amber-500/20 disabled:shadow-none"
+          >
+            <Send size={18} className="text-white" />
+          </motion.button>
         </div>
         <p className="text-center text-xs text-slate-600 mt-2">
-          Press Enter to send • Shift+Enter for new line
+          {!GEMINI_API_KEY ? 'Add VITE_GEMINI_API_KEY to .env file' : 'Press Enter to send • Shift+Enter for new line'}
         </p>
       </div>
     </div>

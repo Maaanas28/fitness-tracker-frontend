@@ -118,7 +118,7 @@ function BodyAnalysis() {
       setSavedAnalyses(prev => [newAnalysis, ...prev])
       setAnalysisName('')
       // Show success message
-      alert('âœ“ Analysis saved successfully!')
+      alert('✓ Analysis saved successfully!')
     }
   }
 
@@ -536,4 +536,3 @@ function BodyAnalysis() {
 }
 
 export default BodyAnalysis
-

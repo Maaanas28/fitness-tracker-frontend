@@ -277,7 +277,7 @@ function WorkoutTracker() {
     setWorkoutHistory([workout, ...workoutHistory])
     setCurrentWorkout([])
     
-    toast.success(`âœ“ Workout Saved!\nVolume: ${totalVolume.toLocaleString()}kg`, {
+    toast.success(`✓ Workout Saved!\nVolume: ${totalVolume.toLocaleString()}kg`, {
       duration: 5000,
     })
     setActiveTab('analytics')
@@ -687,7 +687,7 @@ function WorkoutTracker() {
                   whileTap={{ scale: 0.98 }}
                   className="w-full bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 py-5 rounded-2xl font-bold text-lg text-white shadow-md shadow-green-500/20 transition-all mt-2"
                 >
-                  âœ“ Finish Workout & Save
+                  ✓ Finish Workout & Save
                   <ChevronRight size={18} className="inline ml-2" />
                 </motion.button>
               )}

@@ -503,19 +503,19 @@ function WorkoutPlanGenerator() {
                   
                   <div className="flex flex-wrap gap-3">
                     <span className="px-4 py-2 bg-emerald-500/10 text-emerald-400 font-medium rounded-full">
-                                            🎯 {formData.goal === 'muscle_gain' ? 'Muscle Gain' : 'Weight Loss'}
+                      🎯 {formData.goal === 'muscle_gain' ? 'Muscle Gain' : 'Weight Loss'}
                     </span>
                     <span className="px-4 py-2 bg-blue-500/10 text-blue-400 font-medium rounded-full">
-                                            💪 {formData.experience.charAt(0).toUpperCase() + formData.experience.slice(1)}
+                      💪 {formData.experience.charAt(0).toUpperCase() + formData.experience.slice(1)}
                     </span>
                     <span className="px-4 py-2 bg-amber-500/10 text-amber-400 font-medium rounded-full">
-                                            📅 {formData.daysPerWeek} days/week
+                      📅 {formData.daysPerWeek} days/week
                     </span>
                     <span className="px-4 py-2 bg-purple-500/10 text-purple-400 font-medium rounded-full">
-                      â±ï¸ {formData.duration} min
+                      ⏱️ {formData.duration} min
                     </span>
                     <span className="px-4 py-2 bg-indigo-500/10 text-indigo-400 font-medium rounded-full">
-                                            🏋️ {formData.equipment === 'full_gym' ? 'Full Gym' : formData.equipment === 'home' ? 'Home' : 'Bodyweight'}
+                      🏋️ {formData.equipment === 'full_gym' ? 'Full Gym' : formData.equipment === 'home' ? 'Home' : 'Bodyweight'}
                     </span>
                   </div>
                 </div>
@@ -583,17 +583,17 @@ function WorkoutPlanGenerator() {
                 {/* Action Buttons */}
                 <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-800/50">
                   <motion.button
-  onClick={() => exportWorkoutPlanToPDF(generatedPlan, formData)}  // <-- ADD THIS
-  whileHover={{ scale: 1.03 }}
-  whileTap={{ scale: 0.97 }}
-  className="group relative p-4 rounded-xl overflow-hidden border border-blue-500/30"
->
-  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-  <div className="relative flex items-center justify-center gap-2 text-blue-400 font-medium">
-    <Download size={20} strokeWidth={1.8} />
-    <span>Export Plan</span>
-  </div>
-</motion.button>
+                    onClick={() => exportWorkoutPlanToPDF(generatedPlan, formData)}
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="group relative p-4 rounded-xl overflow-hidden border border-blue-500/30"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative flex items-center justify-center gap-2 text-blue-400 font-medium">
+                      <Download size={20} strokeWidth={1.8} />
+                      <span>Export Plan</span>
+                    </div>
+                  </motion.button>
                   
                   <motion.button
                     onClick={() => navigate('/workout')}
