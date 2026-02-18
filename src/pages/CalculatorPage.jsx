@@ -9,7 +9,7 @@ import {
   calculateTDEE, 
   calculateCalorieGoals,
   calculateMacros 
-} from '../utils/calculations'
+} from '../utils/Calculations'
 
 function CalculatorPage() {
   const navigate = useNavigate()
