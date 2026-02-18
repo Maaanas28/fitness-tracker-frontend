@@ -503,19 +503,19 @@ function WorkoutPlanGenerator() {
                   
                   <div className="flex flex-wrap gap-3">
                     <span className="px-4 py-2 bg-emerald-500/10 text-emerald-400 font-medium rounded-full">
-                      �??� {formData.goal === 'muscle_gain' ? 'Muscle Gain' : 'Weight Loss'}
+                                            🎯 {formData.goal === 'muscle_gain' ? 'Muscle Gain' : 'Weight Loss'}
                     </span>
                     <span className="px-4 py-2 bg-blue-500/10 text-blue-400 font-medium rounded-full">
-                      �??� {formData.experience.charAt(0).toUpperCase() + formData.experience.slice(1)}
+                                            💪 {formData.experience.charAt(0).toUpperCase() + formData.experience.slice(1)}
                     </span>
                     <span className="px-4 py-2 bg-amber-500/10 text-amber-400 font-medium rounded-full">
-                      �??? {formData.daysPerWeek} days/week
+                                            📅 {formData.daysPerWeek} days/week
                     </span>
                     <span className="px-4 py-2 bg-purple-500/10 text-purple-400 font-medium rounded-full">
                       â±ï¸ {formData.duration} min
                     </span>
                     <span className="px-4 py-2 bg-indigo-500/10 text-indigo-400 font-medium rounded-full">
-                      �?�?️ {formData.equipment === 'full_gym' ? 'Full Gym' : formData.equipment === 'home' ? 'Home' : 'Bodyweight'}
+                                            🏋️ {formData.equipment === 'full_gym' ? 'Full Gym' : formData.equipment === 'home' ? 'Home' : 'Bodyweight'}
                     </span>
                   </div>
                 </div>
@@ -561,7 +561,7 @@ function WorkoutPlanGenerator() {
                                     <span className="font-medium text-slate-100">{exercise.name}</span>
                                   </div>
                                   <span className="text-slate-400 font-medium text-sm">
-                                    {exercise.sets} �? {exercise.reps}
+                                    {exercise.sets} × {exercise.reps}
                                   </span>
                                 </div>
                                 {exercise.notes && (
