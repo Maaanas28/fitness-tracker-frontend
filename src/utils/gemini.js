@@ -1,16 +1,17 @@
 // src/utils/gemini.js
-// ✅ Using environment variable only - no fallback
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 
-// Optional: Add debug check
 if (!GEMINI_API_KEY) {
   console.error('❌ CRITICAL: VITE_GEMINI_API_KEY not found in .env file')
 }
 
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
 
+// INTERNAL STATE FOR RATE LIMITING
+let isCooldownActive = false;
+
 // ============================================================
-// FALLBACK DATA (used only when API fails)
+// FALLBACK DATA (Your exact original data)
 // ============================================================
 const FALLBACK_WORKOUTS = {
   full_gym: {
@@ -74,13 +75,13 @@ const FALLBACK_MEALS = {
 // MAIN GEMINI API FUNCTION
 // ============================================================
 export const generateWithGemini = async (prompt, type = 'workout') => {
-  console.log(`🤖 Calling Gemini API (type: ${type})...`)
-
-  // ✅ Check if API key exists
-  if (!GEMINI_API_KEY) {
-    console.error('❌ VITE_GEMINI_API_KEY not found in .env file')
-    return useFallback(prompt, type)
+  // 1. Check if we are currently rate-limited
+  if (isCooldownActive) {
+    console.warn('🕒 Rate limit active - Skipping API call and using fallback');
+    return useFallback(prompt, type);
   }
+
+  if (!GEMINI_API_KEY) return useFallback(prompt, type);
 
   try {
     const response = await fetch(GEMINI_URL, {
@@ -93,60 +94,61 @@ export const generateWithGemini = async (prompt, type = 'workout') => {
           maxOutputTokens: 2048,
         }
       })
-    })
+    });
+
+    // 2. Handle 429 specifically
+    if (response.status === 429) {
+      console.error('❌ 429: Quota exceeded. Activating 60s cooldown.');
+      isCooldownActive = true;
+      setTimeout(() => { isCooldownActive = false; }, 60000); // Reset after 1 minute
+      return useFallback(prompt, type);
+    }
 
     if (!response.ok) {
-      const err = await response.json()
-      console.error('❌ Gemini API error:', err?.error?.message || response.status)
-      return useFallback(prompt, type)
+      const err = await response.json();
+      console.error('❌ Gemini API error:', err?.error?.message || response.status);
+      return useFallback(prompt, type);
     }
 
-    const data = await response.json()
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!text) {
-      console.error('❌ No text in Gemini response')
-      return useFallback(prompt, type)
-    }
+    if (!text) return useFallback(prompt, type);
 
-    // Clean markdown code blocks if present
     const cleaned = text
       .replace(/```json\n?/gi, '')
       .replace(/```\n?/gi, '')
-      .trim()
+      .trim();
 
-    console.log('✅ Gemini responded successfully')
-    return cleaned
+    return cleaned;
 
   } catch (error) {
-    console.error('❌ Gemini fetch failed:', error.message)
-    return useFallback(prompt, type)
+    console.error('❌ Gemini fetch failed:', error.message);
+    return useFallback(prompt, type);
   }
 }
 
 // ============================================================
-// SMART FALLBACK - used when API fails
+// SMART FALLBACK (Your exact original functionality)
 // ============================================================
 function useFallback(prompt, type) {
-  console.warn('⚠️ Using fallback data - Gemini API unavailable')
-
   if (type === 'workout') {
-    const isHome = prompt.toLowerCase().includes('home')
-    const isBodyweight = prompt.toLowerCase().includes('bodyweight')
-    const isWeightLoss = prompt.toLowerCase().includes('weight loss') || prompt.toLowerCase().includes('lose weight')
+    const isHome = prompt.toLowerCase().includes('home');
+    const isBodyweight = prompt.toLowerCase().includes('bodyweight');
+    const isWeightLoss = prompt.toLowerCase().includes('weight loss') || prompt.toLowerCase().includes('lose weight');
 
-    const equipment = isBodyweight ? 'bodyweight' : isHome ? 'home' : 'full_gym'
-    const goal = isWeightLoss ? 'weight_loss' : 'muscle_gain'
+    const equipment = isBodyweight ? 'bodyweight' : isHome ? 'home' : 'full_gym';
+    const goal = isWeightLoss ? 'weight_loss' : 'muscle_gain';
 
-    return JSON.stringify(FALLBACK_WORKOUTS[equipment][goal])
+    return JSON.stringify(FALLBACK_WORKOUTS[equipment][goal]);
   }
 
   if (type === 'meal') {
-    const isHighProtein = prompt.toLowerCase().includes('protein')
-    return JSON.stringify(isHighProtein ? FALLBACK_MEALS.high_protein : FALLBACK_MEALS.low_cal)
+    const isHighProtein = prompt.toLowerCase().includes('protein');
+    return JSON.stringify(isHighProtein ? FALLBACK_MEALS.high_protein : FALLBACK_MEALS.low_cal);
   }
 
-  return null
+  return null;
 }
 
-export default generateWithGemini
+export default generateWithGemini;
