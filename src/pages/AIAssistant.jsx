@@ -10,12 +10,10 @@ import {
 // ─── FIXED CONFIG ───────────────────────────────────────────────────────────
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
 
-// Optional: Add debug check
 if (!GEMINI_API_KEY) {
   console.error('❌ Missing VITE_GEMINI_API_KEY in .env file')
 }
 
-// FIXED: Using gemini-2.0-flash (latest model)
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
 
 // ─── LOAD ALL USER DATA FROM LOCALSTORAGE ─────────────────────────────────────
@@ -37,7 +35,6 @@ function getUserContext() {
   const progressPhotos = Array.isArray(safe('progressPhotos')) ? safe('progressPhotos') : []
   const savedAnalyses = Array.isArray(safe('savedAnalyses')) ? safe('savedAnalyses') : []
 
-  // Build smart context summary
   const totalWorkouts = workoutHistory.length
   const totalVolume = workoutHistory.reduce((s, w) => s + (w?.volume || 0), 0)
   const avgCalories = workoutHistory.length
@@ -258,11 +255,9 @@ export default function AIAssistant() {
     setMessages([{ id: 1, role: 'assistant', content: welcome }])
   }, [userCtx])
 
-  // ── FIXED: Non-streaming Gemini call ──────────────────────────────────────
   const sendMessage = useCallback(async (userText) => {
     if (!userText.trim() || isLoading) return
     
-    // FIXED: Check for API key
     if (!GEMINI_API_KEY) {
       setMessages(prev => [...prev, {
         id: Date.now(),
@@ -299,20 +294,22 @@ export default function AIAssistant() {
     }])
 
     try {
-      // FIXED: Using standard generateContent (not streaming)
       const response = await fetch(GEMINI_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents })
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API error: ${response.status} - ${errorText}`)
+        // --- ADDED 429 QUOTA ERROR HANDLING ---
+        if (response.status === 429) {
+          throw new Error("QUOTA_LIMIT: You reached your API limit. Please wait about 60 seconds before trying again.")
+        }
+        throw new Error(data.error?.message || `API error: ${response.status}`)
       }
 
-      // FIXED: Simple JSON response parsing
-      const data = await response.json()
       const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.'
 
       setMessages(prev => prev.map(m =>
@@ -324,11 +321,14 @@ export default function AIAssistant() {
     } catch (err) {
       console.error('Gemini error:', err)
       
-      const fallback = `I'm having trouble connecting right now. Based on your data:\n\n- You've completed **${userCtx.totalWorkouts} workouts**\n- Total volume: **${userCtx.totalVolume.toLocaleString()}kg**\n- Today's calories: **${userCtx.todayCalories}**\n\nPlease try again in a moment.`
+      // Use the specific error message if it's the quota limit
+      const errorContent = err.message.includes("QUOTA_LIMIT") 
+        ? err.message 
+        : `I'm having trouble connecting right now. Based on your data:\n\n- You've completed **${userCtx.totalWorkouts} workouts**\n- Total volume: **${userCtx.totalVolume.toLocaleString()}kg**\n- Today's calories: **${userCtx.todayCalories}**\n\nPlease try again in a moment.`
 
       setMessages(prev => prev.map(m =>
         m.id === assistantId
-          ? { ...m, content: fallback, streaming: false }
+          ? { ...m, content: errorContent, streaming: false }
           : m
       ))
     } finally {
@@ -486,7 +486,7 @@ export default function AIAssistant() {
             whileTap={{ scale: 0.95 }}
             className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-slate-700 disabled:to-slate-700 rounded-2xl flex items-center justify-center transition-all flex-shrink-0 shadow-lg shadow-amber-500/20 disabled:shadow-none"
           >
-            <Send size={18} className="text-white" />
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : <Send size={18} className="text-white" />}
           </motion.button>
         </div>
         <p className="text-center text-xs text-slate-600 mt-2">
