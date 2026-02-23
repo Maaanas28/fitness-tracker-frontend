@@ -5,7 +5,7 @@ import {
   Dumbbell, Flame, CheckCircle, ChevronRight, Sparkles 
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { generateWithGemini } from '../utils/gemini'
+import { generateWithAI } from '../utils/ai'
 import { exportWorkoutPlanToPDF } from '../utils/exportPDF'
 
 
@@ -58,7 +58,7 @@ function WorkoutPlanGenerator() {
       Make sure exercises match the available equipment: ${equipmentText}
       If equipment is limited, suggest appropriate alternatives.`
       
-      const aiResponse = await generateWithGemini(prompt, 'workout')
+      const aiResponse = await generateWithAI(prompt, 'workout')
       
       if (aiResponse) {
         try {
@@ -232,7 +232,7 @@ function WorkoutPlanGenerator() {
             <h1 className="text-2.5xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-200 to-slate-400">
               AI Workout Generator
             </h1>
-            <p className="text-slate-500 text-sm mt-1.5 ml-1">Powered by Gemini AI</p>
+            <p className="text-slate-500 text-sm mt-1.5 ml-1">Powered by Grok AI</p>
           </div>
         </div>
         {generatedPlan && (
@@ -629,7 +629,7 @@ function WorkoutPlanGenerator() {
                       AI-Powered Plans
                     </h2>
                     <p className="text-slate-400 text-lg">
-                      Select your preferences and let Gemini AI create a custom workout plan tailored just for you.
+                      Select your preferences and let Grok AI create a custom workout plan tailored just for you.
                     </p>
                   </div>
                   

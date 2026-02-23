@@ -6,7 +6,7 @@ import {
   Repeat, Star, Sparkles
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { generateWithGemini } from '../utils/gemini'
+import { generateWithAI } from '../utils/ai'
 import { ExerciseSkeleton } from '../components/LoadingSkeleton'
 import { EmptyState } from '../components/EmptyState'
 import toast from 'react-hot-toast'
@@ -159,7 +159,7 @@ function ExerciseLibrary() {
     Make them realistic and effective.`
     
     try {
-      const aiResponse = await generateWithGemini(prompt)
+      const aiResponse = await generateWithAI(prompt, 'workout')
       
       if (aiResponse) {
         const jsonMatch = aiResponse.match(/\[[\s\S]*\]/)

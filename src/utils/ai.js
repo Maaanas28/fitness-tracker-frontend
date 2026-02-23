@@ -1,17 +1,15 @@
-// src/utils/gemini.js
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+// src/utils/ai.js
+// ✅ Using GROQ API - 14,400 requests/day FREE!
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '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'
 
-if (!GEMINI_API_KEY) {
-  console.error('❌ CRITICAL: VITE_GEMINI_API_KEY not found in .env file')
+if (!GROQ_API_KEY) {
+  console.error('❌ CRITICAL: VITE_GROQ_API_KEY not found')
 }
 
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
-
-// INTERNAL STATE FOR RATE LIMITING
-let isCooldownActive = false;
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 // ============================================================
-// FALLBACK DATA (Your exact original data)
+// FALLBACK DATA (used only when API fails)
 // ============================================================
 const FALLBACK_WORKOUTS = {
   full_gym: {
@@ -72,83 +70,75 @@ const FALLBACK_MEALS = {
 }
 
 // ============================================================
-// MAIN GEMINI API FUNCTION
+// MAIN GROQ API FUNCTION (for WorkoutPlanGenerator, DietTracker)
 // ============================================================
-export const generateWithGemini = async (prompt, type = 'workout') => {
-  // 1. Check if we are currently rate-limited
-  if (isCooldownActive) {
-    console.warn('🕒 Rate limit active - Skipping API call and using fallback');
-    return useFallback(prompt, type);
+export const generateWithAI = async (prompt, type = 'workout') => {
+  console.log(`🤖 Calling Groq API (type: ${type})...`)
+
+  if (!GROQ_API_KEY) {
+    console.error('❌ GROQ_API_KEY not found')
+    return useFallback(prompt, type)
   }
 
-  if (!GEMINI_API_KEY) return useFallback(prompt, type);
-
   try {
-    const response = await fetch(GEMINI_URL, {
+    const response = await fetch(GROQ_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        }
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 2048,
       })
-    });
-
-    // 2. Handle 429 specifically
-    if (response.status === 429) {
-      console.error('❌ 429: Quota exceeded. Activating 60s cooldown.');
-      isCooldownActive = true;
-      setTimeout(() => { isCooldownActive = false; }, 60000); // Reset after 1 minute
-      return useFallback(prompt, type);
-    }
+    })
 
     if (!response.ok) {
-      const err = await response.json();
-      console.error('❌ Gemini API error:', err?.error?.message || response.status);
-      return useFallback(prompt, type);
+      const err = await response.json().catch(() => ({}))
+      console.error('❌ Groq API error:', err?.error?.message || response.status)
+      return useFallback(prompt, type)
     }
 
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const data = await response.json()
+    const text = data?.choices?.[0]?.message?.content
 
-    if (!text) return useFallback(prompt, type);
+    if (!text) {
+      console.error('❌ No text in Groq response')
+      return useFallback(prompt, type)
+    }
 
-    const cleaned = text
-      .replace(/```json\n?/gi, '')
-      .replace(/```\n?/gi, '')
-      .trim();
-
-    return cleaned;
+    const cleaned = text.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim()
+    console.log('✅ Groq responded successfully')
+    return cleaned
 
   } catch (error) {
-    console.error('❌ Gemini fetch failed:', error.message);
-    return useFallback(prompt, type);
+    console.error('❌ Groq fetch failed:', error.message)
+    return useFallback(prompt, type)
   }
 }
 
-// ============================================================
-// SMART FALLBACK (Your exact original functionality)
-// ============================================================
 function useFallback(prompt, type) {
+  console.warn('⚠️ Using fallback data')
+
   if (type === 'workout') {
-    const isHome = prompt.toLowerCase().includes('home');
-    const isBodyweight = prompt.toLowerCase().includes('bodyweight');
-    const isWeightLoss = prompt.toLowerCase().includes('weight loss') || prompt.toLowerCase().includes('lose weight');
+    const isHome = prompt.toLowerCase().includes('home')
+    const isBodyweight = prompt.toLowerCase().includes('bodyweight')
+    const isWeightLoss = prompt.toLowerCase().includes('weight loss') || prompt.toLowerCase().includes('lose weight')
 
-    const equipment = isBodyweight ? 'bodyweight' : isHome ? 'home' : 'full_gym';
-    const goal = isWeightLoss ? 'weight_loss' : 'muscle_gain';
+    const equipment = isBodyweight ? 'bodyweight' : isHome ? 'home' : 'full_gym'
+    const goal = isWeightLoss ? 'weight_loss' : 'muscle_gain'
 
-    return JSON.stringify(FALLBACK_WORKOUTS[equipment][goal]);
+    return JSON.stringify(FALLBACK_WORKOUTS[equipment][goal])
   }
 
   if (type === 'meal') {
-    const isHighProtein = prompt.toLowerCase().includes('protein');
-    return JSON.stringify(isHighProtein ? FALLBACK_MEALS.high_protein : FALLBACK_MEALS.low_cal);
+    const isHighProtein = prompt.toLowerCase().includes('protein')
+    return JSON.stringify(isHighProtein ? FALLBACK_MEALS.high_protein : FALLBACK_MEALS.low_cal)
   }
 
-  return null;
+  return null
 }
 
-export default generateWithGemini;
+export default generateWithAI

@@ -8,13 +8,13 @@ import {
 } from 'lucide-react'
 
 // ─── FIXED CONFIG ───────────────────────────────────────────────────────────
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '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'
 
-if (!GEMINI_API_KEY) {
-  console.error('❌ Missing VITE_GEMINI_API_KEY in .env file')
+if (!GROQ_API_KEY) {
+  console.error('❌ Missing VITE_GROQ_API_KEY in .env file')
 }
 
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`
+const GROQ_URL = `https://api.groq.com/openai/v1/chat/completions`
 
 // ─── LOAD ALL USER DATA FROM LOCALSTORAGE ─────────────────────────────────────
 function getUserContext() {
@@ -30,7 +30,7 @@ function getUserContext() {
   const currentWorkout = Array.isArray(safe('currentWorkout')) ? safe('currentWorkout') : []
   const todayLog = Array.isArray(safe('todayLog')) ? safe('todayLog') : []
   const dailyMeals = Array.isArray(safe('dailyMeals')) ? safe('dailyMeals') : []
-  const calorieData = safe('calorieData')
+  const calorieData = safe('userCalorieData')
   const waterIntake = safe('waterIntake')
   const progressPhotos = Array.isArray(safe('progressPhotos')) ? safe('progressPhotos') : []
   const savedAnalyses = Array.isArray(safe('savedAnalyses')) ? safe('savedAnalyses') : []
@@ -237,6 +237,7 @@ export default function AIAssistant() {
   const [isLoading, setIsLoading] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(true)
   const [userCtx] = useState(() => getUserContext())
+  const [lastRequestTime, setLastRequestTime] = useState(0)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -258,11 +259,11 @@ export default function AIAssistant() {
   const sendMessage = useCallback(async (userText) => {
     if (!userText.trim() || isLoading) return
     
-    if (!GEMINI_API_KEY) {
+    if (!GROQ_API_KEY) {
       setMessages(prev => [...prev, {
         id: Date.now(),
         role: 'assistant',
-        content: '❌ **API Key Missing**\n\nPlease add your Gemini API key to the `.env` file:\n```\nVITE_GEMINI_API_KEY=your_key_here\n```\n\nThen restart the dev server.'
+        content: '❌ **Grok API Key Missing**\n\nPlease add your Grok API key to the `.env` file:\n```\nVITE_GROQ_API_KEY=your_key_here\n```\n\nThen restart the dev server.'
       }])
       return
     }
@@ -278,13 +279,17 @@ export default function AIAssistant() {
     const systemPrompt = buildSystemPrompt(userCtx)
     const history = [...messages, userMsg]
 
-    const contents = [
-      { role: 'user', parts: [{ text: systemPrompt + '\n\nUser: ' + history[0]?.content }] },
-      ...history.slice(1).map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }]
-      }))
+    // Build Grok API messages format
+    const grokMessages = [
+      { role: 'user', content: systemPrompt }
     ]
+    
+    history.forEach(m => {
+      grokMessages.push({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content
+      })
+    })
 
     setMessages(prev => [...prev, {
       id: assistantId,
@@ -294,23 +299,31 @@ export default function AIAssistant() {
     }])
 
     try {
-      const response = await fetch(GEMINI_URL, {
+      const response = await fetch(GROQ_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents })
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: grokMessages,
+          temperature: 0.7,
+          max_tokens: 2048,
+        })
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        // --- ADDED 429 QUOTA ERROR HANDLING ---
+        // --- 429 QUOTA ERROR HANDLING ---
         if (response.status === 429) {
           throw new Error("QUOTA_LIMIT: You reached your API limit. Please wait about 60 seconds before trying again.")
         }
         throw new Error(data.error?.message || `API error: ${response.status}`)
       }
 
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I could not generate a response.'
+      const text = data?.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.'
 
       setMessages(prev => prev.map(m =>
         m.id === assistantId
@@ -319,7 +332,7 @@ export default function AIAssistant() {
       ))
 
     } catch (err) {
-      console.error('Gemini error:', err)
+      console.error('🚨 Grok API error:', err)
       
       // Use the specific error message if it's the quota limit
       const errorContent = err.message.includes("QUOTA_LIMIT") 
@@ -344,6 +357,22 @@ export default function AIAssistant() {
   }
 
   const handleQuickAction = (prompt) => {
+    const now = Date.now()
+    const timeSinceLastRequest = now - lastRequestTime
+    const cooldownMs = 65000 // 65 seconds
+
+    if (timeSinceLastRequest < cooldownMs) {
+      const secondsLeft = Math.ceil((cooldownMs - timeSinceLastRequest) / 1000)
+      setMessages(prev => [...prev, {
+        id: Date.now(),
+        role: 'assistant',
+        content: `⏳ **Please wait ${secondsLeft} more seconds** before making another request. The API has rate limits to prevent abuse.`,
+        streaming: false
+      }])
+      return
+    }
+
+    setLastRequestTime(now)
     sendMessage(prompt)
   }
 
@@ -382,9 +411,9 @@ export default function AIAssistant() {
             <div>
               <h1 className="font-bold text-white tracking-tight">AI Trainer</h1>
               <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 ${!GEMINI_API_KEY ? 'bg-red-400' : 'bg-green-400'} rounded-full animate-pulse`} />
+                <div className={`w-1.5 h-1.5 ${!GROQ_API_KEY ? 'bg-red-400' : 'bg-green-400'} rounded-full animate-pulse`} />
                 <span className="text-xs text-slate-500">
-                  {!GEMINI_API_KEY ? 'API Key Missing' : 'Powered by Gemini • Knows your data'}
+                  {!GROQ_API_KEY ? 'API Key Missing' : 'Powered by Grok • Knows your data'}
                 </span>
               </div>
             </div>
@@ -467,9 +496,9 @@ export default function AIAssistant() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={!GEMINI_API_KEY ? "⚠️ Add API key in .env file first" : "Ask me anything about your training, nutrition, recovery..."}
+              placeholder={!GROQ_API_KEY ? "⚠️ Add API key in .env file first" : "Ask me anything about your training, nutrition, recovery..."}
               rows={1}
-              disabled={isLoading || !GEMINI_API_KEY}
+              disabled={isLoading || !GROQ_API_KEY}
               className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-slate-500 resize-none focus:outline-none transition-all disabled:opacity-50"
               style={{ maxHeight: '120px' }}
               onInput={e => {
@@ -481,7 +510,7 @@ export default function AIAssistant() {
 
           <motion.button
             onClick={() => sendMessage(input)}
-            disabled={!input.trim() || isLoading || !GEMINI_API_KEY}
+            disabled={!input.trim() || isLoading || !GROQ_API_KEY}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-slate-700 disabled:to-slate-700 rounded-2xl flex items-center justify-center transition-all flex-shrink-0 shadow-lg shadow-amber-500/20 disabled:shadow-none"
@@ -490,7 +519,7 @@ export default function AIAssistant() {
           </motion.button>
         </div>
         <p className="text-center text-xs text-slate-600 mt-2">
-          {!GEMINI_API_KEY ? 'Add VITE_GEMINI_API_KEY to .env file' : 'Press Enter to send • Shift+Enter for new line'}
+          {!GROQ_API_KEY ? 'Add VITE_GROQ_API_KEY to .env file' : 'Press Enter to send • Shift+Enter for new line'}
         </p>
       </div>
     </div>

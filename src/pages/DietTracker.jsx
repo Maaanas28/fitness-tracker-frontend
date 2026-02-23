@@ -10,7 +10,7 @@ import {
 } from 'recharts'
 import { useState, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
-import { generateWithGemini } from '../utils/gemini'
+import { generateWithAI } from '../utils/ai'
 import { DietSkeleton } from '../components/LoadingSkeleton'
 import { EmptyState } from '../components/EmptyState'
 
@@ -209,7 +209,7 @@ function DietTracker() {
     Return ONLY the JSON array, no other text.`
     
     try {
-      const aiResponse = await generateWithGemini(prompt, 'meal')
+      const aiResponse = await generateWithAI(prompt, 'meal')
       
       if (aiResponse) {
         try {
