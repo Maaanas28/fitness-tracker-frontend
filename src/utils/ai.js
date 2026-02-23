@@ -1,9 +1,9 @@
 // src/utils/ai.js
 // ✅ Using GROQ API - 14,400 requests/day FREE!
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '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'
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 
 if (!GROQ_API_KEY) {
-  console.error('❌ CRITICAL: VITE_GROQ_API_KEY not found')
+  console.error('❌ CRITICAL: VITE_GROQ_API_KEY not found in .env file')
 }
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'

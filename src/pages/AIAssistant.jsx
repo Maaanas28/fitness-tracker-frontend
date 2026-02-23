@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 
 // ─── FIXED CONFIG ───────────────────────────────────────────────────────────
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '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'
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 
 if (!GROQ_API_KEY) {
   console.error('❌ Missing VITE_GROQ_API_KEY in .env file')
