@@ -1,22 +1,26 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
-import { Component } from 'react'
+import { Component, Suspense, lazy, useEffect, useRef } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { isAuthenticated } from './services/api'
 import { ThemeProvider } from './context/ThemeContext'
-import LandingPage from './pages/LandingPage'
-import LoginPage from './pages/LoginPage'
-import Dashboard from './pages/Dashboard'
-import CalculatorPage from './pages/CalculatorPage'
-import WorkoutTracker from './pages/WorkoutTracker'
-import DietTracker from './pages/DietTracker'
-import ExerciseLibrary from './pages/ExerciseLibrary'
-import ProgressPage from './pages/ProgressPage'
-import ProfilePage from './pages/ProfilePage'
-import WaterTracker from './pages/WaterTracker'
-import RestTimer from './pages/RestTimer'
-import WorkoutPlanGenerator from './pages/WorkoutPlanGenerator'
-import BodyAnalysis from './pages/BodyAnalysis'
-import AIAssistant from './pages/AIAssistant'
+
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const CalculatorPage = lazy(() => import('./pages/CalculatorPage'))
+const WorkoutTracker = lazy(() => import('./pages/WorkoutTracker'))
+const DietTracker = lazy(() => import('./pages/DietTracker'))
+const ExerciseLibrary = lazy(() => import('./pages/ExerciseLibrary'))
+const ProgressPage = lazy(() => import('./pages/ProgressPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const WaterTracker = lazy(() => import('./pages/WaterTracker'))
+const RestTimer = lazy(() => import('./pages/RestTimer'))
+const WorkoutPlanGenerator = lazy(() => import('./pages/WorkoutPlanGenerator'))
+const BodyAnalysis = lazy(() => import('./pages/BodyAnalysis'))
+const AIAssistant = lazy(() => import('./pages/AIAssistant'))
+const AuthCallback = lazy(() => import('./pages/AuthCallback'))
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 
 // Error Boundary Component
 class ErrorBoundary extends Component {
@@ -65,7 +69,61 @@ class ErrorBoundary extends Component {
   }
 }
 
+const ProtectedRoute = ({ children }) => {
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" replace />
+  }
+  return children
+}
+
 function App() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const routeStackRef = useRef([])
+
+  useEffect(() => {
+    const currentRoute = `${location.pathname}${location.search}${location.hash}`
+    const stack = routeStackRef.current
+    const lastRoute = stack[stack.length - 1]
+
+    if (lastRoute !== currentRoute) {
+      stack.push(currentRoute)
+    }
+  }, [location.pathname, location.search, location.hash])
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+
+      const target = event.target
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName
+        const isTypingField =
+          tag === 'INPUT' ||
+          tag === 'TEXTAREA' ||
+          tag === 'SELECT' ||
+          target.isContentEditable
+
+        if (isTypingField) return
+      }
+
+      const stack = routeStackRef.current
+      if (stack.length > 1) {
+        stack.pop()
+        const previousRoute = stack[stack.length - 1]
+        if (previousRoute) {
+          navigate(previousRoute)
+          return
+        }
+      }
+
+      navigate(-1)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navigate])
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
@@ -92,22 +150,26 @@ function App() {
             },
           }}
         />
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/calculator" element={<CalculatorPage />} />
-          <Route path="/workout" element={<WorkoutTracker />} />
-          <Route path="/diet" element={<DietTracker />} />
-          <Route path="/exercises" element={<ExerciseLibrary />} />
-          <Route path="/progress" element={<ProgressPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/water" element={<WaterTracker />} />
-          <Route path="/timer" element={<RestTimer />} />
-          <Route path="/workout-plan" element={<WorkoutPlanGenerator />} />
-          <Route path="/body-analysis" element={<BodyAnalysis />} />
-          <Route path="/ai" element={<AIAssistant />} />
-        </Routes>
+        <Suspense fallback={<div className="min-h-screen bg-black" />}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/calculator" element={<ProtectedRoute><CalculatorPage /></ProtectedRoute>} />
+            <Route path="/workout" element={<ProtectedRoute><WorkoutTracker /></ProtectedRoute>} />
+            <Route path="/diet" element={<ProtectedRoute><DietTracker /></ProtectedRoute>} />
+            <Route path="/exercises" element={<ProtectedRoute><ExerciseLibrary /></ProtectedRoute>} />
+            <Route path="/progress" element={<ProtectedRoute><ProgressPage /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            <Route path="/water" element={<ProtectedRoute><WaterTracker /></ProtectedRoute>} />
+            <Route path="/timer" element={<ProtectedRoute><RestTimer /></ProtectedRoute>} />
+            <Route path="/workout-plan" element={<ProtectedRoute><WorkoutPlanGenerator /></ProtectedRoute>} />
+            <Route path="/body-analysis" element={<ProtectedRoute><BodyAnalysis /></ProtectedRoute>} />
+            <Route path="/ai" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
       </ThemeProvider>
     </ErrorBoundary>
   )

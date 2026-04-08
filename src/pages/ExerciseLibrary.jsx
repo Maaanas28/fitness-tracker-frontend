@@ -1,8 +1,8 @@
-﻿import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, Search, Dumbbell, Target, Zap, 
-  TrendingUp, Activity, Heart, Filter, X, Play, ChevronRight, Plus,
+  TrendingUp, Activity, Heart, Filter, X, Play,
   Repeat, Star, Sparkles
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -11,67 +11,7 @@ import { ExerciseSkeleton } from '../components/LoadingSkeleton'
 import { EmptyState } from '../components/EmptyState'
 import toast from 'react-hot-toast'
 
-// --- EXERCISE DATABASE ---
-const EXERCISE_DATA = {
-  chest: [
-    { id: 'bench-press', name: 'Barbell Bench Press', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-5', reps: '6-12', description: 'Compound movement for overall chest development.', tips: 'Retract scapula, keep feet planted.', videoId: 'rT7DgCr-3pg', substitutions: ['dumbell-press', 'pushup', 'dips'] },
-    { id: 'incline-bench', name: 'Incline Bench Press', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Targets the upper clavicular head of the pecs.', tips: 'Set bench to 30-45 degrees.', videoId: 'SrqOu55lrYU', substitutions: ['incline-db-press', 'dips'] },
-    { id: 'decline-bench', name: 'Decline Bench Press', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Targets lower chest.', tips: 'Do not bounce the bar off your chest.', videoId: 'LfyQBUKR8SE', substitutions: ['dips', 'pushup'] },
-    { id: 'dumbell-press', name: 'Flat Dumbbell Press', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3-4', reps: '8-12', description: 'Allows for greater range of motion than barbell.', tips: 'Bring weights down to chest level.', videoId: 'VmB1G1K7v94', substitutions: ['bench-press', 'pushup'] },
-    { id: 'incline-db-press', name: 'Incline DB Press', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3-4', reps: '8-12', description: 'Upper chest isolation with dumbbells.', tips: 'Control the weights on the way down.', videoId: '4h63bSsdQXg', substitutions: ['incline-bench', 'dips'] },
-    { id: 'db-fly', name: 'Dumbbell Fly', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3', reps: '12-15', description: 'Isolation movement for chest width.', tips: 'Keep a slight bend in elbows.', videoId: 'eozdVDA78K0', substitutions: ['cable-crossover', 'pec-deck'] },
-    { id: 'cable-crossover', name: 'Cable Crossover', difficulty: 'Intermediate', equipment: 'Cable', sets: '3', reps: '15-20', description: 'Constant tension for inner chest.', tips: 'Squeeze at the peak for 1 second.', videoId: 'taI4XduLpTk', substitutions: ['db-fly', 'pec-deck'] },
-    { id: 'pushup', name: 'Push-Up', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: 'AMRAP', description: 'Classic bodyweight builder.', tips: 'Keep body in a straight line.', videoId: 'IODxDxX7oi4', substitutions: ['bench-press', 'dips'] },
-    { id: 'dips', name: 'Chest Dips', difficulty: 'Intermediate', equipment: 'Bodyweight', sets: '3', reps: '8-12', description: 'Lower chest and tricep builder.', tips: 'Lean forward to target chest.', videoId: '2z8JmcrW-As', substitutions: ['bench-press', 'pushup'] }
-  ],
-  back: [
-    { id: 'deadlift', name: 'Barbell Deadlift', difficulty: 'Advanced', equipment: 'Barbell', sets: '3-5', reps: '3-6', description: 'Total back and posterior chain builder.', tips: 'Keep spine neutral.', videoId: 'op9kVnSso6Q', substitutions: ['rdl', 'hyperextension'] },
-    { id: 'pullup', name: 'Pull-Up', difficulty: 'Intermediate', equipment: 'Bodyweight', sets: '3', reps: '6-12', description: 'Vertical pull for lats.', tips: 'Full extension at the bottom.', videoId: 'eGo4IYlbE5g', substitutions: ['lat-pulldown', 'single-arm-row'] },
-    { id: 'bent-row', name: 'Bent Over Row', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Thickness for mid-back.', tips: 'Pull bar to lower chest/waist.', videoId: '9efgcAjQe7E', substitutions: ['tbar-row', 'seated-row'] },
-    { id: 'lat-pulldown', name: 'Lat Pulldown', difficulty: 'Beginner', equipment: 'Cable', sets: '3-4', reps: '10-12', description: 'Width builder for lats.', tips: 'Drive elbows down, not back.', videoId: 'CAwf7n6Luuc', substitutions: ['pullup', 'single-arm-row'] },
-    { id: 'seated-row', name: 'Seated Cable Row', difficulty: 'Beginner', equipment: 'Cable', sets: '3-4', reps: '10-12', description: 'Mid-back thickness.', tips: 'Squeeze shoulder blades together.', videoId: 'GZbfZ033f74', substitutions: ['bent-row', 'single-arm-row'] },
-    { id: 'tbar-row', name: 'T-Bar Row', difficulty: 'Intermediate', equipment: 'Machine', sets: '3-4', reps: '8-12', description: 'Supported heavy rowing.', tips: 'Keep chest on the pad.', videoId: 'j3Igk5nyZE4', substitutions: ['bent-row', 'seated-row'] },
-    { id: 'single-arm-row', name: 'Dumbbell Row', difficulty: 'Beginner', equipment: 'Dumbbell', sets: '3', reps: '10-12', description: 'Unilateral lat work.', tips: 'Keep torso parallel to ground.', videoId: 'pYcpY20QaE8', substitutions: ['bent-row', 'lat-pulldown'] },
-    { id: 'hyperextension', name: 'Back Extension', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: '15', description: 'Lower back endurance.', tips: 'Do not hyperextend at the top.', videoId: 'ph3pddpKzzw', substitutions: ['deadlift', 'rdl'] }
-  ],
-  legs: [
-    { id: 'squat', name: 'Barbell Squat', difficulty: 'Advanced', equipment: 'Barbell', sets: '3-5', reps: '5-8', description: 'Overall leg mass builder.', tips: 'Knees track over toes.', videoId: '-bJIpOq-LWk', substitutions: ['leg-press', 'goblet-squat'] },
-    { id: 'leg-press', name: 'Leg Press', difficulty: 'Beginner', equipment: 'Machine', sets: '3-4', reps: '10-15', description: 'Heavy quad loading.', tips: 'Do not lock knees.', videoId: 'IZxyjW7MPJQ', substitutions: ['squat', 'bulgarian'] },
-    { id: 'lunge', name: 'Walking Lunge', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3', reps: '12 steps', description: 'Unilateral leg strength.', tips: 'Keep torso upright.', videoId: 'tQNktxPkSeE', substitutions: ['bulgarian', 'squat'] },
-    { id: 'leg-ext', name: 'Leg Extension', difficulty: 'Beginner', equipment: 'Machine', sets: '3', reps: '15-20', description: 'Quad isolation.', tips: 'Squeeze quads at the top.', videoId: 'YyvSfVjQeL0', substitutions: ['squat', 'leg-press'] },
-    { id: 'leg-curl', name: 'Lying Leg Curl', difficulty: 'Beginner', equipment: 'Machine', sets: '3', reps: '12-15', description: 'Hamstring isolation.', tips: 'Keep hips pressed into pad.', videoId: '1Tq3QdYUuHs', substitutions: ['rdl', 'deadlift'] },
-    { id: 'rdl', name: 'Romanian Deadlift', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Hamstring and glute focus.', tips: 'Push hips back, keep soft knees.', videoId: 'JCXUYuzwNrM', substitutions: ['deadlift', 'leg-curl'] },
-    { id: 'calf-raise', name: 'Standing Calf Raise', difficulty: 'Beginner', equipment: 'Machine', sets: '4', reps: '15-20', description: 'Calf mass.', tips: 'Full stretch at bottom.', videoId: 'baEXLy09Ncc', substitutions: [] },
-    { id: 'goblet-squat', name: 'Goblet Squat', difficulty: 'Beginner', equipment: 'Dumbbell', sets: '3', reps: '12', description: 'Quad focus, easier on back.', tips: 'Hold weight at chest.', videoId: 'MeIiIdhvXT4', substitutions: ['squat', 'leg-press'] },
-    { id: 'bulgarian', name: 'Bulgarian Split Squat', difficulty: 'Advanced', equipment: 'Dumbbell', sets: '3', reps: '8-10', description: 'Single leg stability and mass.', tips: 'Rear foot elevated.', videoId: '2C-uNgKwPLE', substitutions: ['lunge', 'squat'] }
-  ],
-  shoulders: [
-    { id: 'ohp', name: 'Overhead Press', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-5', reps: '5-8', description: 'Compound shoulder mass.', tips: 'Tight core, do not lean back.', videoId: '2yjwXTZQDDI', substitutions: ['db-press', 'arnold'] },
-    { id: 'db-press', name: 'Seated DB Press', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3-4', reps: '8-12', description: 'Anterior and lateral delt.', tips: 'Press in an arc.', videoId: 'qEwKCR5JCog', substitutions: ['ohp', 'arnold'] },
-    { id: 'lat-raise', name: 'Lateral Raise', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '4', reps: '15-20', description: 'Side delt width.', tips: 'Lead with elbows.', videoId: '3VcKaXpzqRo', substitutions: ['upright-row'] },
-    { id: 'front-raise', name: 'Front Raise', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3', reps: '12-15', description: 'Front delt isolation.', tips: 'Controlled tempo.', videoId: 'hRJ6tR5-if0', substitutions: ['ohp', 'db-press'] },
-    { id: 'rev-fly', name: 'Reverse Fly', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3', reps: '15', description: 'Rear delt isolation.', tips: 'Bend forward, fly arms out.', videoId: '-_hx_2fp_Jw', substitutions: ['face-pull'] },
-    { id: 'upright-row', name: 'Upright Row', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3', reps: '10-12', description: 'Traps and side delts.', tips: 'Do not pull too high.', videoId: 'amCU-ziHITM', substitutions: ['lat-raise'] },
-    { id: 'arnold', name: 'Arnold Press', difficulty: 'Intermediate', equipment: 'Dumbbells', sets: '3', reps: '10-12', description: 'Full shoulder rotation.', tips: 'Twist dumbbells as you press.', videoId: '3ml7BH7mNwQ', substitutions: ['ohp', 'db-press'] }
-  ],
-  arms: [
-    { id: 'bb-curl', name: 'Barbell Curl', difficulty: 'Beginner', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Mass builder for biceps.', tips: 'Keep elbows tucked.', videoId: 'kwG2ipFRgfo', substitutions: ['db-curl', 'hammer'] },
-    { id: 'db-curl', name: 'Dumbbell Curl', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3', reps: '10-12', description: 'Standard curl.', tips: 'Supinate (twist) wrist at top.', videoId: 'ykJmrZ5v0Oo', substitutions: ['bb-curl', 'hammer'] },
-    { id: 'hammer', name: 'Hammer Curl', difficulty: 'Beginner', equipment: 'Dumbbells', sets: '3', reps: '10-12', description: 'Brachialis and forearm.', tips: 'Thumbs up grip.', videoId: 'zC3nLlEvin4', substitutions: ['bb-curl', 'db-curl'] },
-    { id: 'skull', name: 'Skullcrushers', difficulty: 'Intermediate', equipment: 'Barbell', sets: '3-4', reps: '8-12', description: 'Tricep mass.', tips: 'Lower to forehead.', videoId: 'd_KZxkY_0cM', substitutions: ['pushdown', 'overhead-ext'] },
-    { id: 'pushdown', name: 'Cable Pushdown', difficulty: 'Beginner', equipment: 'Cable', sets: '3', reps: '15', description: 'Tricep lateral head.', tips: 'Keep elbows pinned.', videoId: '2-LAMcpzODU', substitutions: ['skull', 'overhead-ext'] },
-    { id: 'overhead-ext', name: 'Overhead Extension', difficulty: 'Intermediate', equipment: 'Dumbbell', sets: '3', reps: '12', description: 'Tricep long head.', tips: 'Full stretch behind head.', videoId: 'YbX7Wd8jQ-Q', substitutions: ['skull', 'pushdown'] },
-    { id: 'conc-curl', name: 'Concentration Curl', difficulty: 'Beginner', equipment: 'Dumbbell', sets: '3', reps: '12', description: 'Bicep peak.', tips: 'Elbow against inner thigh.', videoId: '0AUGkch3tzc', substitutions: ['db-curl', 'hammer'] }
-  ],
-  core: [
-    { id: 'crunch', name: 'Crunches', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: '20', description: 'Upper abs.', tips: 'Exhale as you crunch.', videoId: 'Xyd_fa5zoEU', substitutions: ['leg-raise', 'cable-crunch'] },
-    { id: 'leg-raise', name: 'Hanging Leg Raise', difficulty: 'Intermediate', equipment: 'Bodyweight', sets: '3', reps: '15', description: 'Lower abs.', tips: 'Keep lower back pressed to floor.', videoId: 'Pr1ieGZ5atk', substitutions: ['crunch', 'plank'] },
-    { id: 'plank', name: 'Plank', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: '60s', description: 'Core stability.', tips: 'Squeeze glutes.', videoId: 'pSHjTRCQxIw', substitutions: ['crunch', 'russian-twist'] },
-    { id: 'russian-twist', name: 'Russian Twist', difficulty: 'Intermediate', equipment: 'Bodyweight', sets: '3', reps: '20', description: 'Obliques.', tips: 'Rotate shoulders, not just hands.', videoId: 'wkD8rjkodUI', substitutions: ['leg-raise', 'm-climber'] },
-    { id: 'm-climber', name: 'Mountain Climber', difficulty: 'Beginner', equipment: 'Bodyweight', sets: '3', reps: '30s', description: 'Cardio core.', tips: 'Keep hips low.', videoId: 'nmwgirgXLYM', substitutions: ['plank', 'crunch'] },
-    { id: 'cable-crunch', name: 'Cable Crunch', difficulty: 'Intermediate', equipment: 'Cable', sets: '3', reps: '15', description: 'Weighted abs.', tips: 'Curl inwards, do not hinge at hips.', videoId: 'ByZJuk85YuE', substitutions: ['crunch', 'leg-raise'] }
-  ]
-};
+import { EXERCISE_DATA, CATEGORY_ACCENTS } from '../data/exerciseLibraryData'
 
 function ExerciseLibrary() {
   const navigate = useNavigate()
@@ -222,102 +162,183 @@ function ExerciseLibrary() {
 
   const getDifficultyColor = (difficulty) => {
     switch(difficulty) {
-      case 'Beginner': return 'bg-green-500/20 text-green-400'
-      case 'Intermediate': return 'bg-blue-500/20 text-blue-400'
-      case 'Advanced': return 'bg-red-500/20 text-red-400'
-      default: return 'bg-gray-500/20 text-gray-400'
+      case 'Beginner': return 'bg-emerald-500/15 text-emerald-200 border border-emerald-300/40'
+      case 'Intermediate': return 'bg-sky-500/15 text-sky-200 border border-sky-300/40'
+      case 'Advanced': return 'bg-rose-500/15 text-rose-200 border border-rose-300/40'
+      default: return 'bg-slate-500/15 text-slate-200 border border-slate-300/40'
     }
   }
 
+  const activeFilterCount = selectedDifficulty.length + selectedEquipment.length + (showOnlyFavorites ? 1 : 0)
+
   const getThumbnailUrl = (videoId) => {
-    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-red-500 overflow-x-hidden">
-      
-      {/* Header */}
-      <motion.header 
-        className="bg-black/60 backdrop-blur-xl p-6 flex items-center justify-between border-b border-white/5 sticky top-0 z-50"
-        initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+    <div
+      className="relative min-h-screen overflow-x-hidden text-slate-100 selection:bg-cyan-300 selection:text-slate-950"
+      style={{ background: 'radial-gradient(160% 120% at 16% 0%, #3c1f67 0%, #121c3a 42%, #070b18 100%)' }}
+    >
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)',
+          backgroundSize: '42px 42px',
+          maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.48), rgba(0,0,0,1))'
+        }}
+      />
+      <div className="pointer-events-none absolute -left-20 top-10 h-64 w-64 rounded-full blur-3xl" style={{ background: 'rgba(56,189,248,0.18)' }} />
+      <div className="pointer-events-none absolute right-0 top-36 h-72 w-72 rounded-full blur-3xl" style={{ background: 'rgba(217,70,239,0.18)' }} />
+
+      <motion.header
+        className="sticky top-0 z-50 border-b backdrop-blur-2xl"
+        style={{ borderColor: 'rgba(226,232,240,0.16)', background: 'linear-gradient(92deg, rgba(8,14,32,0.9) 0%, rgba(29,14,46,0.88) 52%, rgba(6,12,28,0.9) 100%)' }}
+        initial={{ y: -40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
       >
-        <div className="flex items-center gap-6">
-          <motion.button onClick={() => navigate('/dashboard')} className="p-3 bg-white/5 rounded-2xl hover:bg-red-600 transition-all border border-white/5 group">
-            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-          </motion.button>
-          <div>
-            <h1 className="text-2xl font-black italic tracking-tighter uppercase leading-none">Library_Database</h1>
-            <p className="text-[10px] text-red-500 font-bold tracking-[0.3em] uppercase mt-1">Status: Online</p>
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-4">
+            <motion.button
+              onClick={() => navigate('/dashboard')}
+              className="group rounded-2xl border p-3"
+              style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'rgba(15,23,42,0.62)' }}
+              whileHover={{ x: -2 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <ArrowLeft size={20} className="text-slate-100 transition-transform group-hover:-translate-x-1" />
+            </motion.button>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-200/80">Movement Archive</p>
+              <h1
+                className="text-3xl leading-none tracking-tight text-white"
+                style={{ fontFamily: "'Bebas Neue', 'Space Grotesk', sans-serif" }}
+              >
+                Exercise Library
+              </h1>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* AI Button - Shows when searching */}
-          {searchTerm && (
-            <motion.button 
-              onClick={getAIRecommendations}
-              disabled={isLoadingAI}
-              className="p-3 bg-purple-600/20 hover:bg-purple-600/40 transition-all rounded-xl border border-purple-500/30 flex items-center gap-2"
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            {searchTerm && (
+              <motion.button
+                onClick={getAIRecommendations}
+                disabled={isLoadingAI}
+                className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em]"
+                style={{ borderColor: 'rgba(196,181,253,0.55)', background: 'rgba(109,40,217,0.24)', color: '#e9d5ff' }}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.97 }}
+                title="Get AI recommendations"
+              >
+                {isLoadingAI ? (
+                  <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}>
+                    <Sparkles size={16} />
+                  </motion.span>
+                ) : (
+                  <Sparkles size={16} />
+                )}
+                <span className="hidden md:inline">AI Picks</span>
+              </motion.button>
+            )}
+
+            <motion.button
+              onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
+              className="rounded-xl border p-2.5"
+              style={{
+                borderColor: showOnlyFavorites ? 'rgba(253,224,71,0.75)' : 'rgba(148,163,184,0.35)',
+                background: showOnlyFavorites ? 'rgba(202,138,4,0.22)' : 'rgba(15,23,42,0.62)',
+                color: showOnlyFavorites ? '#fde047' : '#cbd5e1'
+              }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              title="Get AI recommendations"
+              title={showOnlyFavorites ? 'Show all exercises' : 'Show favorite exercises only'}
             >
-              {isLoadingAI ? (
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                >
-                  <Sparkles size={20} className="text-purple-400" />
-                </motion.div>
-              ) : (
-                <Sparkles size={20} className="text-purple-400" />
-              )}
-              <span className="text-xs font-medium text-purple-400 hidden md:inline">AI Suggest</span>
+              <Star size={18} fill={showOnlyFavorites ? 'currentColor' : 'none'} />
             </motion.button>
-          )}
-          
-          {/* Favorites Toggle Button */}
-          <motion.button 
-            onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}
-            className={`p-3 transition-all rounded-xl border ${
-              showOnlyFavorites 
-                ? 'bg-yellow-600 border-yellow-500 text-white' 
-                : 'bg-white/5 border-white/5 text-zinc-500 hover:border-white/20'
-            }`}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            title={showOnlyFavorites ? 'Show All Exercises' : 'Show Favorites Only'}
-          >
-            <Star size={20} fill={showOnlyFavorites ? 'white' : 'none'} />
-          </motion.button>
-          <motion.button onClick={() => setShowFilters(!showFilters)} className="p-3 bg-white/5 hover:bg-red-600 transition-all rounded-xl border border-white/5">
-            <Filter size={20} />
-          </motion.button>
+
+            <motion.button
+              onClick={() => setShowFilters(!showFilters)}
+              className="rounded-xl border p-2.5"
+              style={{ borderColor: 'rgba(56,189,248,0.5)', background: 'rgba(6,182,212,0.18)', color: '#a5f3fc' }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Open filters"
+            >
+              <Filter size={18} />
+            </motion.button>
+          </div>
         </div>
       </motion.header>
 
-      {/* Filter Modal */}
       <AnimatePresence>
         {showFilters && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/90 backdrop-blur-md z-[60] flex items-center justify-center p-6" onClick={() => setShowFilters(false)}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-[#0a0a0a] rounded-[2.5rem] w-full max-w-md p-10 relative border border-white/10" onClick={e => e.stopPropagation()}>
-              <button onClick={() => setShowFilters(false)} className="absolute top-8 right-8 text-zinc-500 hover:text-white transition-all"><X size={24} /></button>
-              <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-10 text-white">Filtering_Parameters</h2>
-              
-              <div className="space-y-10">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md sm:p-6"
+            onClick={() => setShowFilters(false)}
+          >
+            <motion.div
+              initial={{ y: 24, opacity: 0, scale: 0.96 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 24, opacity: 0, scale: 0.96 }}
+              className="relative w-full max-w-2xl overflow-hidden rounded-[30px] border p-6 sm:p-8"
+              style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(17,24,39,0.94) 100%)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="pointer-events-none absolute -top-24 right-[-20px] h-52 w-52 rounded-full blur-3xl" style={{ background: 'rgba(14,165,233,0.2)' }} />
+              <button onClick={() => setShowFilters(false)} className="absolute right-5 top-5 text-slate-400 transition-colors hover:text-white">
+                <X size={22} />
+              </button>
+
+              <div className="relative z-10 space-y-8">
                 <div>
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-red-600 mb-4">Difficulty_Level</h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    {allDifficulties.map(d => (
-                      <button key={d} onClick={() => toggleDifficulty(d)} className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${selectedDifficulty.includes(d) ? 'bg-red-600 border-red-600 text-white' : 'bg-white/5 border-white/5 text-zinc-500 hover:border-white/20'}`}>{d}</button>
-                    ))}
-                  </div>
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-200">Refine Results</p>
+                  <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                    Filter Protocols
+                  </h2>
                 </div>
-                <div>
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-red-600 mb-4">Equipment_ID</h3>
-                  <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto pr-2 scrollbar-hide">
-                    {allEquipment.map(e => (
-                      <button key={e} onClick={() => toggleEquipment(e)} className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${selectedEquipment.includes(e) ? 'bg-red-600 border-red-600 text-white' : 'bg-white/5 border-white/5 text-zinc-500 hover:border-white/20'}`}>{e}</button>
-                    ))}
+
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">Difficulty</h3>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      {allDifficulties.map(d => (
+                        <button
+                          key={d}
+                          onClick={() => toggleDifficulty(d)}
+                          className="rounded-xl border px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] transition-all"
+                          style={{
+                            borderColor: selectedDifficulty.includes(d) ? 'rgba(34,211,238,0.7)' : 'rgba(148,163,184,0.3)',
+                            background: selectedDifficulty.includes(d) ? 'rgba(34,211,238,0.18)' : 'rgba(15,23,42,0.52)',
+                            color: selectedDifficulty.includes(d) ? '#a5f3fc' : '#cbd5e1'
+                          }}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">Equipment</h3>
+                    <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                      {allEquipment.map(e => (
+                        <button
+                          key={e}
+                          onClick={() => toggleEquipment(e)}
+                          className="rounded-xl border px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] transition-all"
+                          style={{
+                            borderColor: selectedEquipment.includes(e) ? 'rgba(196,181,253,0.7)' : 'rgba(148,163,184,0.3)',
+                            background: selectedEquipment.includes(e) ? 'rgba(109,40,217,0.2)' : 'rgba(15,23,42,0.52)',
+                            color: selectedEquipment.includes(e) ? '#ddd6fe' : '#cbd5e1'
+                          }}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -326,65 +347,117 @@ function ExerciseLibrary() {
         )}
       </AnimatePresence>
 
-      <div className="max-w-7xl mx-auto px-6 py-12 space-y-12">
-        {/* Search */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="relative group max-w-2xl mx-auto">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-red-500 transition-colors" size={20} />
-            <input 
-              type="text" 
-              placeholder="SEARCH_EXERCISE_ID..." 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full bg-[#0a0a0a] text-white pl-16 pr-6 py-5 rounded-[2rem] border border-white/5 focus:border-red-600/50 outline-none transition-all font-black uppercase text-xs tracking-[0.2em] placeholder:text-zinc-800 shadow-2xl" 
-            />
-          </div>
-        </motion.div>
+      <main className="relative mx-auto w-full max-w-7xl px-4 pb-14 pt-8 sm:px-6 lg:px-8">
+        <motion.section
+          className="relative overflow-hidden rounded-[30px] border p-6 sm:p-8"
+          style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'linear-gradient(145deg, rgba(15,23,42,0.86) 0%, rgba(9,13,27,0.88) 100%)' }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full blur-3xl" style={{ background: 'rgba(34,211,238,0.2)' }} />
+          <div className="pointer-events-none absolute -bottom-16 left-0 h-52 w-52 rounded-full blur-3xl" style={{ background: 'rgba(196,181,253,0.16)' }} />
 
-        {/* AI Recommendations Modal */}
+          <div className="relative grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
+            <div className="space-y-5">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-200">Video-first movement catalog</p>
+                <h2 className="mt-2 text-3xl font-semibold leading-tight text-white sm:text-4xl" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+                  Curated tutorials with modern training clarity
+                </h2>
+              </div>
+
+              <div className="relative max-w-3xl">
+                <Search className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <input
+                  type="text"
+                  placeholder="Search by movement, body part, or training goal"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full rounded-2xl border bg-slate-950/55 py-4 pl-14 pr-4 text-sm text-white outline-none transition-colors placeholder:text-slate-400/80 focus:border-cyan-300/80"
+                  style={{ borderColor: 'rgba(148,163,184,0.35)' }}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: 'rgba(34,211,238,0.45)', background: 'rgba(34,211,238,0.12)', color: '#a5f3fc' }}>
+                  {allExercises.length} total videos
+                </span>
+                <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'rgba(30,41,59,0.5)', color: '#cbd5e1' }}>
+                  {filteredExercises.length} showing
+                </span>
+                <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: 'rgba(253,224,71,0.45)', background: 'rgba(202,138,4,0.14)', color: '#fde68a' }}>
+                  {favorites.length} favorites
+                </span>
+                {activeFilterCount > 0 && (
+                  <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: 'rgba(196,181,253,0.55)', background: 'rgba(109,40,217,0.16)', color: '#ddd6fe' }}>
+                    {activeFilterCount} active filters
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'rgba(15,23,42,0.62)' }}>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Category</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{categories.find((cat) => cat.id === selectedCategory)?.name || 'All'}</p>
+              </div>
+              <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'rgba(15,23,42,0.62)' }}>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Difficulty Tags</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{selectedDifficulty.length || 'All'}</p>
+              </div>
+              <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'rgba(15,23,42,0.62)' }}>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Equipment Tags</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{selectedEquipment.length || 'All'}</p>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
         <AnimatePresence>
           {showAIRecommendations && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
+            <motion.section
+              initial={{ opacity: 0, y: -14 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-gradient-to-br from-purple-900/30 to-purple-950/30 border border-purple-500/30 rounded-2xl p-8 relative overflow-hidden"
+              exit={{ opacity: 0, y: -14 }}
+              className="relative mt-7 overflow-hidden rounded-[28px] border p-6"
+              style={{ borderColor: 'rgba(196,181,253,0.46)', background: 'linear-gradient(150deg, rgba(76,29,149,0.3) 0%, rgba(30,41,59,0.6) 100%)' }}
             >
-              <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 blur-[80px] rounded-full" />
-              
-              <div className="flex justify-between items-start mb-6">
+              <div className="pointer-events-none absolute -right-8 top-[-34px] h-40 w-40 rounded-full blur-3xl" style={{ background: 'rgba(168,85,247,0.25)' }} />
+
+              <div className="relative mb-5 flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <Sparkles className="text-purple-400" size={28} />
-                  <h2 className="text-2xl font-black text-white">AI RECOMMENDATIONS</h2>
+                  <Sparkles className="text-purple-200" size={24} />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-purple-200/85">Smart Suggestions</p>
+                    <h3 className="text-2xl font-semibold text-white">AI Recommendations</h3>
+                  </div>
                 </div>
-                <button
-                  onClick={() => setShowAIRecommendations(false)}
-                  className="text-zinc-500 hover:text-white transition-colors"
-                >
-                  <X size={24} />
+                <button onClick={() => setShowAIRecommendations(false)} className="text-slate-300 transition-colors hover:text-white">
+                  <X size={20} />
                 </button>
               </div>
 
               {aiError ? (
-                <p className="text-red-400 text-center py-4">Failed to get recommendations. Try again.</p>
+                <p className="rounded-xl border border-rose-300/35 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">Could not generate recommendations right now. Try again in a moment.</p>
               ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {aiRecommendations.map((rec, index) => (
                     <motion.div
                       key={index}
-                      initial={{ opacity: 0, scale: 0.9 }}
+                      initial={{ opacity: 0, scale: 0.96 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="bg-black/40 rounded-xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-all"
+                      transition={{ delay: index * 0.08 }}
+                      className="rounded-2xl border p-5"
+                      style={{ borderColor: 'rgba(196,181,253,0.4)', background: 'rgba(15,23,42,0.62)' }}
                     >
-                      <Sparkles size={20} className="text-purple-400 mb-3" />
-                      <h3 className="text-xl font-bold text-white mb-2">{rec.name}</h3>
-                      <p className="text-sm text-zinc-400 mb-4">{rec.description}</p>
-                      <div className="flex flex-wrap gap-2">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${getDifficultyColor(rec.difficulty)}`}>
+                      <p className="text-xs uppercase tracking-[0.14em] text-purple-200">AI pick {index + 1}</p>
+                      <h4 className="mt-2 text-xl font-semibold text-white">{rec.name}</h4>
+                      <p className="mt-2 text-sm text-slate-300">{rec.description}</p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${getDifficultyColor(rec.difficulty)}`}>
                           {rec.difficulty}
                         </span>
-                        <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-300 text-[10px] font-black uppercase tracking-widest border border-zinc-700">
+                        <span className="rounded-full border border-slate-400/35 bg-slate-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-200">
                           {rec.equipment}
                         </span>
                       </div>
@@ -392,134 +465,170 @@ function ExerciseLibrary() {
                   ))}
                 </div>
               )}
-            </motion.div>
+            </motion.section>
           )}
         </AnimatePresence>
 
-        {/* Categories */}
-        <div className="flex overflow-x-auto pb-4 gap-4 scrollbar-hide">
-          {categories.map((cat, idx) => (
-            <motion.button key={cat.id} onClick={() => {
-              setSelectedCategory(cat.id)
-              setShowOnlyFavorites(false)
-            }} className={`flex-shrink-0 px-8 py-4 rounded-2xl transition-all border flex items-center gap-4 ${selectedCategory === cat.id && !showOnlyFavorites ? 'bg-red-600 border-red-600 text-white shadow-[0_0_25px_rgba(220,38,38,0.3)]' : 'bg-[#0a0a0a] border-white/5 text-zinc-500 hover:border-white/20'}`} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: idx * 0.05 }}>
-              <cat.icon size={18} strokeWidth={3} />
-              <span className="font-black text-xs uppercase tracking-[0.2em]">{cat.name}</span>
-            </motion.button>
-          ))}
-        </div>
+        <section className="mt-8 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-300">Muscle Group Channels</p>
+            {showOnlyFavorites && (
+              <span className="rounded-full border border-yellow-400/45 bg-yellow-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-yellow-200">Favorites view</span>
+            )}
+          </div>
 
-        {/* Favorites info bar */}
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {categories.map((cat, idx) => {
+              const accent = CATEGORY_ACCENTS[cat.color] || CATEGORY_ACCENTS.red
+              const isActive = selectedCategory === cat.id && !showOnlyFavorites
+
+              return (
+                <motion.button
+                  key={cat.id}
+                  onClick={() => {
+                    setSelectedCategory(cat.id)
+                    setShowOnlyFavorites(false)
+                  }}
+                  className="flex shrink-0 items-center gap-3 rounded-2xl border px-5 py-3 text-sm font-semibold tracking-[0.08em] transition-all"
+                  style={{
+                    borderColor: isActive ? accent.border : 'rgba(148,163,184,0.35)',
+                    background: isActive ? accent.bg : 'rgba(15,23,42,0.55)',
+                    boxShadow: isActive ? accent.shadow : 'none',
+                    color: isActive ? accent.text : '#cbd5e1'
+                  }}
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.05 }}
+                >
+                  <cat.icon size={16} strokeWidth={2.5} />
+                  <span>{cat.name}</span>
+                </motion.button>
+              )
+            })}
+          </div>
+        </section>
+
         {showOnlyFavorites && (
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between bg-yellow-500/10 border border-yellow-500/20 rounded-2xl px-6 py-3"
+            className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+            style={{ borderColor: 'rgba(253,224,71,0.45)', background: 'rgba(202,138,4,0.12)' }}
           >
-            <div className="flex items-center gap-3">
-              <Star className="text-yellow-500" size={20} fill="currentColor" />
-              <span className="text-yellow-500 font-bold">Showing {filteredExercises.length} Favorite Exercises</span>
+            <div className="flex items-center gap-2 text-yellow-100">
+              <Star size={16} fill="currentColor" />
+              <p className="text-sm font-semibold">Showing {filteredExercises.length} favorite exercises</p>
             </div>
             <button
               onClick={() => setShowOnlyFavorites(false)}
-              className="text-zinc-500 hover:text-white transition-colors text-sm"
+              className="rounded-lg border border-yellow-300/35 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-yellow-100 transition-colors hover:bg-yellow-400/10"
             >
-              Show All
+              Show all
             </button>
           </motion.div>
         )}
+
         {isLoading ? (
-          <ExerciseSkeleton />
+          <div className="mt-8">
+            <ExerciseSkeleton />
+          </div>
         ) : (
           <AnimatePresence mode="wait">
-            <motion.div 
-              key={selectedCategory + searchTerm + showOnlyFavorites} 
-              className="grid md:grid-cols-2 lg:grid-cols-3 gap-8" 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
+            <motion.div
+              key={selectedCategory + searchTerm + showOnlyFavorites}
+              className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
               {filteredExercises.length > 0 ? (
                 filteredExercises.map((ex, idx) => (
-                  <motion.div 
-                    key={ex.id} 
-                    className="bg-[#0a0a0a] border border-white/5 rounded-[2.5rem] overflow-hidden hover:border-red-600/30 transition-all group shadow-2xl" 
-                    initial={{ opacity: 0, y: 20 }} 
-                    animate={{ opacity: 1, y: 0 }} 
-                    transition={{ delay: idx * 0.05 }} 
-                    whileHover={{ y: -5 }}
+                  <motion.article
+                    key={ex.id}
+                    className="group relative overflow-hidden rounded-[28px] border p-[1px]"
+                    style={{ borderColor: 'rgba(148,163,184,0.32)', background: 'linear-gradient(145deg, rgba(125,211,252,0.3), rgba(236,72,153,0.12), rgba(15,23,42,0.6))' }}
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    whileHover={{ y: -6 }}
                   >
-                    
-                    {/* Image Container */}
-                    <div className="relative aspect-[16/9] bg-zinc-900 cursor-pointer overflow-hidden group" onClick={() => setExpandedExercise(ex)}>
-                      <img 
-                        src={getThumbnailUrl(ex.videoId)}
-                        alt={ex.name} 
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 opacity-80 group-hover:opacity-100" 
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center z-10">
-                        <div className="bg-black/50 rounded-full p-4 backdrop-blur-sm group-hover:bg-red-600/80 transition-colors">
-                          <Play fill="white" size={32} className="text-white" />
-                        </div>
-                      </div>
-                      <div className="absolute top-6 right-6 bg-black/60 backdrop-blur-md text-[8px] font-black px-3 py-1.5 rounded-full text-red-500 border border-red-600/50 uppercase tracking-widest z-20">{ex.equipment}</div>
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-80" />
-                      
-                      {/* Favorite Star on Image */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleFavorite(ex.id)
-                        }}
-                        className="absolute top-6 left-6 z-30 p-2 bg-black/60 backdrop-blur-md rounded-full hover:bg-yellow-500/20 transition-all"
-                      >
-                        <Star 
-                          size={16} 
-                          className={isFavorite(ex.id) ? 'text-yellow-500 fill-yellow-500' : 'text-zinc-400'} 
+                    <div className="h-full rounded-[27px] border" style={{ borderColor: 'rgba(148,163,184,0.3)', background: 'linear-gradient(170deg, rgba(15,23,42,0.88) 0%, rgba(8,14,30,0.92) 100%)' }}>
+                      <div className="relative aspect-[16/10] cursor-pointer overflow-hidden rounded-t-[26px]" onClick={() => setExpandedExercise(ex)}>
+                        <img
+                          src={getThumbnailUrl(ex.videoId)}
+                          alt={ex.name}
+                          className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
+                          loading="lazy"
                         />
-                      </button>
-                    </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/20 to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-400/12 to-fuchsia-400/6 opacity-80" />
 
-                    <div className="p-8 space-y-6">
-                      <div>
-                        <h3 className="text-2xl font-black text-white uppercase italic tracking-tighter mb-2">{ex.name}</h3>
-                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border ${getDifficultyColor(ex.difficulty)}`}>{ex.difficulty}</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                          <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-1">Target_Sets</p>
-                          <p className="text-xl font-black text-white italic">{ex.sets}</p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleFavorite(ex.id)
+                          }}
+                          className="absolute left-4 top-4 z-20 rounded-full border p-2"
+                          style={{ borderColor: 'rgba(148,163,184,0.42)', background: 'rgba(15,23,42,0.7)' }}
+                        >
+                          <Star size={15} className={isFavorite(ex.id) ? 'fill-yellow-400 text-yellow-300' : 'text-slate-300'} />
+                        </button>
+
+                        <span className="absolute right-4 top-4 z-20 rounded-full border border-cyan-200/35 bg-cyan-300/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100">
+                          {ex.equipment}
+                        </span>
+
+                        <div className="absolute inset-0 z-10 flex items-center justify-center">
+                          <div className="rounded-full border border-cyan-100/45 bg-slate-900/60 p-4 backdrop-blur-md transition-colors group-hover:bg-cyan-500/45">
+                            <Play size={22} fill="currentColor" className="text-white" />
+                          </div>
                         </div>
-                        <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                          <p className="text-[8px] font-black text-zinc-600 uppercase tracking-widest mb-1">Rep_Range</p>
-                          <p className="text-xl font-black text-white italic">{ex.reps}</p>
-                        </div>
                       </div>
 
-                      {/* Substitutions Button */}
-                      {ex.substitutions && ex.substitutions.length > 0 && (
-                        <div className="space-y-2">
-                          <button
-                            onClick={() => setShowSubstitutions(showSubstitutions === ex.id ? null : ex.id)}
-                            className="w-full py-3 bg-white/5 hover:bg-amber-500/20 text-white hover:text-amber-400 transition-all rounded-xl font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-white/5"
-                          >
-                            <Repeat size={14} />
-                            {showSubstitutions === ex.id ? 'Hide Alternatives' : 'Show Alternatives'}
-                          </button>
+                      <div className="space-y-5 p-5 sm:p-6">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="text-2xl font-semibold leading-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{ex.name}</h3>
+                            <p className="mt-2 text-sm text-slate-300/85 line-clamp-2">{ex.description}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${getDifficultyColor(ex.difficulty)}`}>
+                            {ex.difficulty}
+                          </span>
+                        </div>
 
-                          <AnimatePresence>
-                            {showSubstitutions === ex.id && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="pt-3 mt-2 border-t border-white/5">
-                                  <p className="text-[8px] text-amber-500 font-black uppercase tracking-widest mb-3">ALTERNATIVE EXERCISES</p>
-                                  <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-xl border px-3 py-2" style={{ borderColor: 'rgba(148,163,184,0.3)', background: 'rgba(15,23,42,0.58)' }}>
+                            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-400">Target sets</p>
+                            <p className="mt-1 text-lg font-semibold text-cyan-100">{ex.sets}</p>
+                          </div>
+                          <div className="rounded-xl border px-3 py-2" style={{ borderColor: 'rgba(148,163,184,0.3)', background: 'rgba(15,23,42,0.58)' }}>
+                            <p className="text-[10px] uppercase tracking-[0.12em] text-slate-400">Rep range</p>
+                            <p className="mt-1 text-lg font-semibold text-fuchsia-100">{ex.reps}</p>
+                          </div>
+                        </div>
+
+                        {ex.substitutions && ex.substitutions.length > 0 && (
+                          <div className="space-y-3">
+                            <button
+                              onClick={() => setShowSubstitutions(showSubstitutions === ex.id ? null : ex.id)}
+                              className="w-full rounded-xl border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors"
+                              style={{ borderColor: 'rgba(251,191,36,0.38)', background: showSubstitutions === ex.id ? 'rgba(245,158,11,0.16)' : 'rgba(15,23,42,0.52)', color: '#fcd34d' }}
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <Repeat size={14} />
+                                {showSubstitutions === ex.id ? 'Hide alternatives' : 'Show alternatives'}
+                              </span>
+                            </button>
+
+                            <AnimatePresence>
+                              {showSubstitutions === ex.id && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="space-y-2 border-t border-slate-500/30 pt-3">
                                     {getSubstitutions(ex).map(sub => (
                                       <button
                                         key={sub.id}
@@ -527,112 +636,142 @@ function ExerciseLibrary() {
                                           setExpandedExercise(sub)
                                           setShowSubstitutions(null)
                                         }}
-                                        className="w-full text-left p-3 bg-white/5 hover:bg-amber-500/10 rounded-xl transition-all group/sub"
+                                        className="w-full rounded-xl border px-3 py-2 text-left transition-colors"
+                                        style={{ borderColor: 'rgba(148,163,184,0.28)', background: 'rgba(15,23,42,0.5)' }}
                                       >
-                                        <p className="text-sm font-bold text-white group-hover/sub:text-amber-400">{sub.name}</p>
-                                        <div className="flex items-center gap-2 mt-1">
-                                          <span className="text-[8px] text-zinc-500 uppercase">{sub.equipment}</span>
-                                          <span className="w-1 h-1 rounded-full bg-zinc-700" />
-                                          <span className={`text-[8px] uppercase ${getDifficultyColor(sub.difficulty)}`}>{sub.difficulty}</span>
-                                        </div>
+                                        <p className="text-sm font-semibold text-white">{sub.name}</p>
+                                        <p className="mt-1 text-xs text-slate-400">{sub.equipment}</p>
                                       </button>
                                     ))}
                                   </div>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      )}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        )}
 
-                      <button onClick={() => setExpandedExercise(ex)} className="w-full py-4 bg-white text-black hover:bg-red-600 hover:text-white transition-all rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-3 group">
-                        <Play size={16} strokeWidth={4} fill="currentColor" /> Watch_Tutorial
-                      </button>
+                        <button
+                          onClick={() => setExpandedExercise(ex)}
+                          className="w-full rounded-xl border px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white transition-colors"
+                          style={{ borderColor: 'rgba(56,189,248,0.54)', background: 'linear-gradient(90deg, rgba(2,132,199,0.42), rgba(139,92,246,0.38))' }}
+                        >
+                          <span className="inline-flex items-center gap-2">
+                            <Play size={14} fill="currentColor" />
+                            Watch tutorial
+                          </span>
+                        </button>
+                      </div>
                     </div>
-                  </motion.div>
+                  </motion.article>
                 ))
               ) : (
-                <div className="col-span-full text-center py-20 border-2 border-dashed border-white/10 rounded-[2rem]">
-                  <Search className="mx-auto text-zinc-700 mb-4" size={48} />
-                  <p className="text-zinc-500 font-black uppercase tracking-widest">No matching protocols found.</p>
-                  <button onClick={() => { 
-                    setSearchTerm(''); 
-                    setSelectedDifficulty([]); 
-                    setSelectedEquipment([]);
-                    setShowOnlyFavorites(false);
-                  }} className="mt-6 text-red-500 font-bold uppercase tracking-wider text-xs hover:underline">Clear Filters</button>
+                <div className="col-span-full">
+                  <EmptyState
+                    icon={Search}
+                    title="No exercises matched"
+                    message="Try a different keyword or clear active filters to broaden results."
+                    action={{
+                      label: 'Clear Filters',
+                      onClick: () => {
+                        setSearchTerm('')
+                        setSelectedDifficulty([])
+                        setSelectedEquipment([])
+                        setShowOnlyFavorites(false)
+                      }
+                    }}
+                  />
                 </div>
               )}
             </motion.div>
           </AnimatePresence>
         )}
-      </div>
+      </main>
 
-      {/* Detail Modal */}
       <AnimatePresence>
         {expandedExercise && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[70] flex items-center justify-center p-6 overflow-y-auto" onClick={() => setExpandedExercise(null)}>
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-3xl bg-[#0a0a0a] rounded-[3rem] overflow-hidden border border-red-600/30 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-xl sm:p-6"
+            onClick={() => setExpandedExercise(null)}
+          >
+            <motion.div
+              initial={{ y: 30, opacity: 0, scale: 0.96 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 30, opacity: 0, scale: 0.96 }}
+              className="w-full max-w-4xl overflow-hidden rounded-[32px] border"
+              style={{ borderColor: 'rgba(148,163,184,0.36)', background: 'linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(7,11,23,0.95) 100%)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="relative aspect-video bg-black">
-                <iframe 
-                  width="100%" 
-                  height="100%" 
-                  src={`https://www.youtube.com/embed/${expandedExercise.videoId}?autoplay=1`} 
-                  title={expandedExercise.name} 
-                  frameBorder="0" 
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={`https://www.youtube.com/embed/${expandedExercise.videoId}?autoplay=1`}
+                  title={expandedExercise.name}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
                 ></iframe>
-                <button onClick={() => setExpandedExercise(null)} className="absolute top-4 right-4 p-3 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-red-600 transition-all border border-white/10 z-20"><X size={24} /></button>
-                
-                {/* Favorite button in modal */}
+
+                <button
+                  onClick={() => setExpandedExercise(null)}
+                  className="absolute right-4 top-4 rounded-full border p-2 text-white"
+                  style={{ borderColor: 'rgba(148,163,184,0.5)', background: 'rgba(15,23,42,0.65)' }}
+                >
+                  <X size={20} />
+                </button>
+
                 <button
                   onClick={() => toggleFavorite(expandedExercise.id)}
-                  className="absolute top-4 left-4 p-3 bg-black/50 backdrop-blur-md rounded-full hover:bg-yellow-500/20 transition-all border border-white/10 z-20 flex items-center gap-2"
+                  className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm text-white"
+                  style={{ borderColor: 'rgba(148,163,184,0.5)', background: 'rgba(15,23,42,0.65)' }}
                 >
-                  <Star 
-                    size={20} 
-                    className={isFavorite(expandedExercise.id) ? 'text-yellow-500 fill-yellow-500' : 'text-white'} 
-                  />
-                  <span className="text-white text-sm">
-                    {isFavorite(expandedExercise.id) ? 'Favorited' : 'Add to Favorites'}
-                  </span>
+                  <Star size={16} className={isFavorite(expandedExercise.id) ? 'fill-yellow-400 text-yellow-300' : 'text-white'} />
+                  <span>{isFavorite(expandedExercise.id) ? 'Favorited' : 'Add favorite'}</span>
                 </button>
               </div>
-              <div className="p-10 space-y-8">
+
+              <div className="space-y-6 p-6 sm:p-8">
                 <div>
-                  <h2 className="text-4xl font-black text-white uppercase italic tracking-tighter mb-4">{expandedExercise.name}</h2>
-                  <p className="text-zinc-400 text-lg font-medium leading-relaxed">{expandedExercise.description}</p>
-                </div>
-                <div className="p-6 bg-red-600/10 border border-red-600/30 rounded-3xl">
-                  <p className="text-red-500 font-black uppercase text-[10px] mb-3 tracking-[0.3em] flex items-center gap-2"><Zap size={16} /> Coach_Tip</p>
-                  <p className="text-white font-medium italic">"{expandedExercise.tips}"</p>
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-cyan-200">Exercise details</p>
+                  <h2 className="mt-2 text-4xl font-semibold leading-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{expandedExercise.name}</h2>
+                  <p className="mt-3 text-slate-300">{expandedExercise.description}</p>
                 </div>
 
-                {/* Substitutions in Modal */}
+                <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(56,189,248,0.4)', background: 'rgba(14,116,144,0.14)' }}>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-200">Coach tip</p>
+                  <p className="mt-2 text-slate-100">{expandedExercise.tips}</p>
+                </div>
+
                 {expandedExercise.substitutions && expandedExercise.substitutions.length > 0 && (
                   <div className="space-y-3">
-                    <p className="text-amber-500 font-black uppercase text-[10px] tracking-[0.3em] flex items-center gap-2">
-                      <Repeat size={14} /> Alternatives
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-amber-200">Alternative exercises</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
                       {getSubstitutions(expandedExercise).map(sub => (
                         <button
                           key={sub.id}
                           onClick={() => {
                             setExpandedExercise(sub)
                           }}
-                          className="text-left p-4 bg-white/5 hover:bg-amber-500/10 rounded-xl transition-all group"
+                          className="rounded-xl border px-4 py-3 text-left transition-colors hover:bg-amber-400/10"
+                          style={{ borderColor: 'rgba(251,191,36,0.35)', background: 'rgba(15,23,42,0.55)' }}
                         >
-                          <p className="font-bold text-white group-hover:text-amber-400">{sub.name}</p>
-                          <p className="text-xs text-zinc-500 mt-1">{sub.equipment}</p>
+                          <p className="font-semibold text-white">{sub.name}</p>
+                          <p className="mt-1 text-xs text-slate-400">{sub.equipment}</p>
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
 
-                <button className="w-full py-5 bg-white text-black font-black uppercase tracking-[0.4em] text-xs rounded-2xl hover:bg-red-600 hover:text-white transition-all shadow-xl" onClick={() => setExpandedExercise(null)}>Dismiss_Module</button>
+                <button
+                  className="w-full rounded-xl border border-cyan-300/50 bg-cyan-300/10 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100 transition-colors hover:bg-cyan-300/20"
+                  onClick={() => setExpandedExercise(null)}
+                >
+                  Close player
+                </button>
               </div>
             </motion.div>
           </motion.div>

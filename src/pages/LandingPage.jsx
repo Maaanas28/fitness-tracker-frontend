@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useCallback, memo } from 'react'
+import React, { useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowUpRight, Play, Zap, Activity } from 'lucide-react'
 
@@ -27,9 +27,6 @@ const CustomCursor = () => {
   return (
     <div
       ref={cursorRef}
-      // ✅ FIX 1: Removed "transition-transform duration-0" - even 0ms transition adds delay
-      // ✅ FIX 2: Removed "shadow-lg shadow-white/50" - shadow causes GPU repaint every move
-      // ✅ FIX 3: willChange via style prop for proper compositing layer
       className="fixed top-0 left-0 w-6 h-6 pointer-events-none z-[100]"
       style={{ willChange: 'transform', transform: 'translate(-100px, -100px)' }}
     >
@@ -266,7 +263,6 @@ function LandingPage() {
               </div>
             </div>
           </div>
-
         </div>
       </section>
 

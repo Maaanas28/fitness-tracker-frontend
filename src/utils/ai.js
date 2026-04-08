@@ -3,7 +3,7 @@
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
 
 if (!GROQ_API_KEY) {
-  console.error('❌ CRITICAL: VITE_GROQ_API_KEY not found in .env file')
+  console.warn('AI utility running in fallback mode: VITE_GROQ_API_KEY not found')
 }
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
@@ -76,8 +76,8 @@ export const generateWithAI = async (prompt, type = 'workout') => {
   console.log(`🤖 Calling Groq API (type: ${type})...`)
 
   if (!GROQ_API_KEY) {
-    console.error('❌ GROQ_API_KEY not found')
-    return useFallback(prompt, type)
+    console.warn('GROQ_API_KEY missing, using local fallback response')
+    return fallbackResponse(prompt, type)
   }
 
   try {
@@ -98,7 +98,7 @@ export const generateWithAI = async (prompt, type = 'workout') => {
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
       console.error('❌ Groq API error:', err?.error?.message || response.status)
-      return useFallback(prompt, type)
+      return fallbackResponse(prompt, type)
     }
 
     const data = await response.json()
@@ -106,7 +106,7 @@ export const generateWithAI = async (prompt, type = 'workout') => {
 
     if (!text) {
       console.error('❌ No text in Groq response')
-      return useFallback(prompt, type)
+      return fallbackResponse(prompt, type)
     }
 
     const cleaned = text.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim()
@@ -115,11 +115,11 @@ export const generateWithAI = async (prompt, type = 'workout') => {
 
   } catch (error) {
     console.error('❌ Groq fetch failed:', error.message)
-    return useFallback(prompt, type)
+    return fallbackResponse(prompt, type)
   }
 }
 
-function useFallback(prompt, type) {
+function fallbackResponse(prompt, type) {
   console.warn('⚠️ Using fallback data')
 
   if (type === 'workout') {
