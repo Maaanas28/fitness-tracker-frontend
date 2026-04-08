@@ -18,6 +18,7 @@ Full-stack fitness tracking application with a modern React frontend and an Expr
 
 - React 19
 - Vite
+- Bootstrap 5
 - React Router
 - Framer Motion
 - Recharts

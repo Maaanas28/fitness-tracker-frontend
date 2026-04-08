@@ -40,8 +40,8 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-black flex items-center justify-center p-6">
-          <div className="bg-zinc-900 border-2 border-red-600 rounded-2xl p-8 max-w-md text-center">
+        <div className="min-h-screen min-vh-100 bg-black d-flex align-items-center justify-content-center p-6 p-4">
+          <div className="bg-zinc-900 card border border-danger border-2 rounded-2xl p-8 max-w-md text-center">
             <AlertTriangle className="text-red-600 mx-auto mb-4 animate-pulse" size={64} />
             <h1 className="text-2xl font-black text-white mb-2 uppercase tracking-tight">
               SYSTEM ERROR
@@ -56,7 +56,7 @@ class ErrorBoundary extends Component {
             </div>
             <button
               onClick={() => window.location.reload()}
-              className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl uppercase tracking-wider transition-colors w-full"
+              className="btn btn-danger bg-red-600 hover:bg-red-700 text-white font-bold px-6 py-3 rounded-xl uppercase tracking-wider transition-colors w-full"
             >
               Reload Application
             </button>
@@ -150,7 +150,11 @@ function App() {
             },
           }}
         />
-        <Suspense fallback={<div className="min-h-screen bg-black" />}>
+        <Suspense fallback={
+          <div className="min-h-screen min-vh-100 bg-black d-flex align-items-center justify-content-center">
+            <div className="spinner-border text-danger" role="status" aria-hidden="true" />
+          </div>
+        }>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
