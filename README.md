@@ -173,8 +173,10 @@ npm run build
 
 ## Additional Docs
 
-- COMPLETE_README.md
-- INTEGRATION_GUIDE.md
+- docs/COMPLETE_README.md
+- docs/INTEGRATION_GUIDE.md
+- docs/PROJECT_DOCUMENTATION.md
+- docs/Groupname_ICT3230_Backend_Report.md
 - backend/GOOGLE_AUTH_SETUP.md
 
 ## Troubleshooting
