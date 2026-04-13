@@ -171,6 +171,20 @@ npm run lint
 npm run build
 ```
 
+## Deploy Frontend on Vercel
+
+- Import this repository in Vercel.
+- Framework preset: Vite.
+- Root directory: . (this repository root).
+- Install command: npm install.
+- Build command: npm run build.
+- Output directory: dist.
+- Add environment variable VITE_API_URL with your deployed backend API URL, for example https://your-backend-domain.com/api.
+- Add VITE_GROQ_API_KEY only if you want direct frontend AI calls.
+- Redeploy after updating environment variables.
+
+This project includes vercel.json with SPA rewrite support so React Router routes work on refresh.
+
 ## Additional Docs
 
 - docs/COMPLETE_README.md
