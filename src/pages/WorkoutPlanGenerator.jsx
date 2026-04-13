@@ -1,669 +1,674 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { 
-  ArrowLeft, Calendar, Target, Zap, Download, RefreshCw, 
-  Dumbbell, Flame, CheckCircle, ChevronRight, Sparkles 
+import {
+  ArrowLeft,
+  CheckCircle,
+  ChevronRight,
+  Download,
+  Dumbbell,
+  Flame,
+  History,
+  RefreshCw,
+  Sparkles,
+  Target,
+  Calendar,
+  Timer,
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
+import toast from 'react-hot-toast'
 import { generateWithAI } from '../utils/ai'
 import { exportWorkoutPlanToPDF } from '../utils/exportPDF'
 
+const CALC_COLORS = {
+  page: 'linear-gradient(120deg, #0b0f14 0%, #0f141b 35%, #121821 70%, #0b0f14 100%)',
+  accent: '#d1d5db',
+  signal: '#ef4444',
+}
+
+const MATTE = {
+  panel: 'linear-gradient(155deg, rgba(255,255,255,0.08) 0%, rgba(26,32,44,0.92) 30%, rgba(9,12,18,0.98) 100%)',
+  tile: 'linear-gradient(150deg, rgba(255,255,255,0.07) 0%, rgba(16,22,33,0.95) 45%, rgba(6,9,14,1) 100%)',
+  inset: 'linear-gradient(170deg, rgba(255,255,255,0.03) 0%, rgba(20,26,34,0.95) 36%, rgba(11,15,21,1) 100%)',
+  borderSoft: 'rgba(255,255,255,0.10)',
+}
+
+const STORAGE_KEY = 'generatedWorkoutPlan'
+
+const DEFAULT_FORM = {
+  goal: 'muscle_gain',
+  experience: 'intermediate',
+  daysPerWeek: 4,
+  duration: 60,
+  equipment: 'full_gym',
+}
+
+const DAY_SPLITS = {
+  muscle_gain: [
+    'Upper Body Push',
+    'Lower Body Strength',
+    'Upper Body Pull',
+    'Lower Body & Core',
+    'Full Body Power',
+    'Conditioning & Core',
+  ],
+  weight_loss: [
+    'Metabolic Full Body',
+    'Lower Body + HIIT',
+    'Upper Body Circuit',
+    'Conditioning Intervals',
+    'Full Body Density',
+    'Core + Cardio',
+  ],
+}
+
+const EXPERIENCE = ['beginner', 'intermediate', 'advanced']
+const EQUIPMENT = [
+  { value: 'full_gym', label: 'Full Gym' },
+  { value: 'home', label: 'Home Setup' },
+  { value: 'bodyweight', label: 'Bodyweight' },
+]
+
+const text = (v, fallback = '') => {
+  if (v == null) return fallback
+  const s = String(v).trim()
+  return s || fallback
+}
+
+const exerciseItem = (item, index) => ({
+  name: text(item?.name, `Exercise ${index + 1}`),
+  sets: text(item?.sets, '3'),
+  reps: text(item?.reps, '10-12'),
+  notes: text(item?.notes, ''),
+})
+
+const targetExercisesPerDay = (duration = 60) => {
+  const d = Number(duration) || 60
+  if (d >= 90) return 6
+  if (d >= 60) return 5
+  if (d >= 45) return 4
+  return 3
+}
+
+const buildExercisePool = (sourceExercises = [], targetCount = 0) => {
+  const normalized = sourceExercises.map(exerciseItem)
+  if (!normalized.length || targetCount <= 0) return normalized
+  if (normalized.length >= targetCount) return normalized
+
+  const expanded = [...normalized]
+  let i = 0
+  while (expanded.length < targetCount) {
+    const base = normalized[i % normalized.length]
+    expanded.push({
+      ...base,
+      notes: text(base.notes, 'Controlled form') + ' | Variation set',
+    })
+    i += 1
+  }
+  return expanded
+}
+
+const distributeExercises = (flatExercises = [], daysPerWeek = 4, goal = 'muscle_gain', duration = 60) => {
+  const targetDays = Math.max(3, Math.min(6, Number(daysPerWeek) || 4))
+  const splits = DAY_SPLITS[goal] || DAY_SPLITS.muscle_gain
+  const perDay = targetExercisesPerDay(duration)
+  const neededCount = targetDays * perDay
+
+  if (!flatExercises.length) {
+    return Array.from({ length: targetDays }, (_, i) =>
+      ({
+        day: `Day ${i + 1} - ${splits[i] || 'Training Day'}`,
+        exercises: [
+          { name: 'Bodyweight Squat', sets: '3', reps: '12-15', notes: 'Controlled tempo' },
+          { name: 'Push-up', sets: '3', reps: '10-15', notes: 'Keep core tight' },
+          { name: 'Plank', sets: '3', reps: '30-45 sec', notes: 'Neutral spine' },
+        ],
+      })
+    )
+  }
+
+  const pool = buildExercisePool(flatExercises, neededCount)
+  const days = []
+  for (let i = 0; i < targetDays; i += 1) {
+    const start = i * perDay
+    const chunk = pool.slice(start, start + perDay)
+
+    days.push({
+      day: `Day ${i + 1} - ${splits[i] || 'Training Day'}`,
+      exercises: chunk.length ? chunk.map(exerciseItem) : buildExercisePool(flatExercises, perDay).slice(0, perDay),
+    })
+  }
+
+  return days
+}
+
+const normalizeAIPlan = (rawPlan, formData) => {
+  if (!rawPlan) return null
+
+  const parseRaw = () => {
+    if (typeof rawPlan === 'string') {
+      const trimmed = rawPlan.trim()
+      const jsonMatch = trimmed.match(/\{[\s\S]*\}|\[[\s\S]*\]/)
+      return JSON.parse(jsonMatch ? jsonMatch[0] : trimmed)
+    }
+    return rawPlan
+  }
+
+  let parsed
+  try {
+    parsed = parseRaw()
+  } catch {
+    return null
+  }
+
+  // AI fallback utility may return a flat exercise array.
+  if (Array.isArray(parsed)) {
+    return {
+      name: `${formData.daysPerWeek}-Day ${formData.goal === 'muscle_gain' ? 'Muscle' : 'Fat Loss'} Plan`,
+      days: distributeExercises(parsed, formData.daysPerWeek, formData.goal, formData.duration),
+    }
+  }
+
+  const sourceDays = Array.isArray(parsed.days) ? parsed.days : []
+  const normalizedDays = sourceDays.map((day, dayIndex) => ({
+    day: text(day?.day, `Day ${dayIndex + 1}`),
+    exercises: Array.isArray(day?.exercises) ? day.exercises.map(exerciseItem) : [],
+  }))
+
+  const allExercises = normalizedDays.flatMap((d) => d.exercises || [])
+  const exactDays = distributeExercises(allExercises, formData.daysPerWeek, formData.goal, formData.duration)
+
+  return {
+    name: text(parsed.name, `${formData.daysPerWeek}-Day Custom Plan`),
+    days: exactDays,
+  }
+}
+
+const toSetRange = (value) => {
+  const match = String(value || '').match(/(\d+)(?:\s*-\s*(\d+))?/)
+  if (!match) return [3, 3]
+  const min = Number(match[1])
+  const max = Number(match[2] || match[1])
+  return [min, max]
+}
+
+const formatSetRange = (min, max) => {
+  return min === max ? `${min}` : `${min}-${max}`
+}
+
+const tuneFallbackByExperience = (exercises, experience, goal) => {
+  return exercises.map((exercise) => {
+    const next = { ...exercise }
+    const [setMin, setMax] = toSetRange(next.sets)
+
+    if (experience === 'beginner') {
+      const min = Math.max(2, setMin - 1)
+      const max = Math.max(min, Math.min(3, setMax))
+      next.sets = formatSetRange(min, max)
+      next.notes = `${text(next.notes)}${next.notes ? ' | ' : ''}Beginner pace and strict form`
+      if (goal === 'weight_loss' && !/sec|m/i.test(String(next.reps))) {
+        next.reps = '10-15'
+      }
+    } else if (experience === 'advanced') {
+      const min = Math.min(6, setMin + 1)
+      const max = Math.min(6, setMax + 1)
+      next.sets = formatSetRange(min, Math.max(min, max))
+      next.notes = `${text(next.notes)}${next.notes ? ' | ' : ''}Advanced intensity block`
+      if (goal === 'muscle_gain' && !/sec|m/i.test(String(next.reps))) {
+        next.reps = '6-10'
+      }
+    }
+
+    return next
+  })
+}
+
+const getFallbackPlan = (formData) => {
+  const equipment = formData.equipment || 'full_gym'
+  const goal = formData.goal === 'muscle_gain' ? 'Muscle' : 'Fat Loss'
+
+  const library = {
+    full_gym: {
+      muscle_gain: [
+        { name: 'Barbell Squat', sets: '4', reps: '6-10', notes: 'Brace core before each rep' },
+        { name: 'Bench Press', sets: '4', reps: '6-10', notes: 'Controlled eccentric' },
+        { name: 'Lat Pulldown', sets: '3', reps: '10-12', notes: 'Pull elbows down' },
+        { name: 'Romanian Deadlift', sets: '3', reps: '8-10', notes: 'Hip hinge, neutral spine' },
+        { name: 'Cable Row', sets: '3', reps: '10-12', notes: 'Squeeze shoulder blades' },
+        { name: 'Overhead Press', sets: '3', reps: '8-10', notes: 'Ribcage down' },
+      ],
+      weight_loss: [
+        { name: 'Kettlebell Swing', sets: '4', reps: '15-20', notes: 'Explosive hip drive' },
+        { name: 'Walking Lunge', sets: '3', reps: '12 each leg', notes: 'Keep chest tall' },
+        { name: 'Incline Dumbbell Press', sets: '3', reps: '10-12', notes: 'No lockout rush' },
+        { name: 'TRX Row', sets: '3', reps: '12-15', notes: 'Control tempo' },
+        { name: 'Rower Sprint', sets: '5', reps: '30 sec', notes: 'High output intervals' },
+        { name: 'Battle Rope Slams', sets: '4', reps: '25 sec', notes: 'Explosive rhythm' },
+      ],
+    },
+    home: {
+      muscle_gain: [
+        { name: 'Goblet Squat', sets: '4', reps: '10-15', notes: 'Dumbbell at chest' },
+        { name: 'Dumbbell Floor Press', sets: '4', reps: '8-12', notes: 'Pause at bottom' },
+        { name: 'Single-arm Row', sets: '4', reps: '10-12', notes: 'Each side' },
+        { name: 'Split Squat', sets: '3', reps: '10 each leg', notes: 'Rear foot elevated if possible' },
+        { name: 'Shoulder Press', sets: '3', reps: '10-12', notes: 'Seated or standing' },
+        { name: 'RDL with Dumbbells', sets: '3', reps: '10-12', notes: 'Hinge through hips' },
+      ],
+      weight_loss: [
+        { name: 'Dumbbell Thruster', sets: '4', reps: '12-15', notes: 'Squat into press' },
+        { name: 'Alternating Reverse Lunge', sets: '3', reps: '14 each leg', notes: 'Steady pace' },
+        { name: 'Renegade Row', sets: '3', reps: '10-12', notes: 'Keep hips square' },
+        { name: 'Mountain Climbers', sets: '4', reps: '30 sec', notes: 'Fast and controlled' },
+        { name: 'Jump Rope', sets: '5', reps: '45 sec', notes: 'Short rest between rounds' },
+        { name: 'Plank', sets: '3', reps: '45 sec', notes: 'Neutral spine' },
+      ],
+    },
+    bodyweight: {
+      muscle_gain: [
+        { name: 'Tempo Air Squat', sets: '4', reps: '15-20', notes: '3-second eccentric' },
+        { name: 'Push-up', sets: '4', reps: '10-20', notes: 'Hands under shoulders' },
+        { name: 'Reverse Lunge', sets: '3', reps: '12 each leg', notes: 'Tall torso' },
+        { name: 'Pike Push-up', sets: '3', reps: '8-12', notes: 'Focus shoulder drive' },
+        { name: 'Glute Bridge', sets: '3', reps: '20', notes: 'Squeeze at top' },
+        { name: 'Hollow Hold', sets: '3', reps: '20-30 sec', notes: 'Lower back pressed down' },
+      ],
+      weight_loss: [
+        { name: 'Burpee', sets: '4', reps: '10-15', notes: 'Smooth pacing' },
+        { name: 'Jump Squat', sets: '4', reps: '12-16', notes: 'Soft landing' },
+        { name: 'High Knees', sets: '4', reps: '30 sec', notes: 'Drive knees up' },
+        { name: 'Plank Jack', sets: '3', reps: '20', notes: 'Keep hips stable' },
+        { name: 'Skater Hops', sets: '3', reps: '16 each side', notes: 'Explosive lateral push' },
+        { name: 'Mountain Climbers', sets: '4', reps: '30 sec', notes: 'Steady breathing' },
+      ],
+    },
+  }
+
+  const goalKey = formData.goal === 'weight_loss' ? 'weight_loss' : 'muscle_gain'
+  const base = library[equipment]?.[goalKey] || library.full_gym.muscle_gain
+  const exercises = tuneFallbackByExperience(base, formData.experience, goalKey)
+
+  if (goalKey === 'weight_loss') {
+    exercises.push(
+      equipment === 'full_gym'
+        ? { name: 'Assault Bike Intervals', sets: '6', reps: '20 sec on / 40 sec off', notes: 'All-out effort on work phase' }
+        : equipment === 'home'
+          ? { name: 'Jump Rope Intervals', sets: '6', reps: '45 sec on / 15 sec off', notes: 'Maintain cadence' }
+          : { name: 'EMOM Conditioning', sets: '10', reps: '20 sec burpees + 40 sec march', notes: 'Repeat each minute' }
+    )
+  }
+
+  return {
+    name: `${formData.daysPerWeek}-Day ${goal} Plan`,
+    days: distributeExercises(exercises, formData.daysPerWeek, formData.goal, formData.duration),
+  }
+}
 
 function WorkoutPlanGenerator() {
   const navigate = useNavigate()
-  const [formData, setFormData] = useState({
-    goal: 'muscle_gain',
-    experience: 'intermediate',
-    daysPerWeek: 4,
-    duration: 60,
-    equipment: 'full_gym'
-  })
+  const [formData, setFormData] = useState(DEFAULT_FORM)
   const [generatedPlan, setGeneratedPlan] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [aiError, setAiError] = useState(false)
 
-  // COMPLETE generatePlan function
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      if (!saved) return
+      const parsed = JSON.parse(saved)
+      if (parsed?.plan?.days?.length) {
+        setGeneratedPlan(parsed.plan)
+        if (parsed.formData) setFormData((prev) => ({ ...prev, ...parsed.formData }))
+      }
+    } catch {
+      // Ignore invalid cache
+    }
+  }, [])
+
+  const badgeData = useMemo(
+    () => [
+      { label: formData.goal === 'muscle_gain' ? 'Muscle Gain' : 'Weight Loss', icon: Target },
+      { label: `${formData.daysPerWeek} Days/Week`, icon: Calendar },
+      { label: `${formData.duration} Min Session`, icon: Timer },
+      { label: formData.equipment === 'full_gym' ? 'Full Gym' : formData.equipment === 'home' ? 'Home Setup' : 'Bodyweight', icon: Dumbbell },
+    ],
+    [formData]
+  )
+
+  const persistPlan = (plan, nextFormData) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ plan, formData: nextFormData }))
+  }
+
   const generatePlan = async () => {
     setIsGenerating(true)
     setAiError(false)
-    
+
     try {
-      const goalText = formData.goal === 'muscle_gain' ? 'build muscle' : 'lose weight'
+      const goalText = formData.goal === 'muscle_gain' ? 'build muscle' : 'lose body fat'
       const equipmentText = {
         full_gym: 'full gym equipment with barbells, machines, and cables',
-        home: 'home workout with dumbbells and minimal equipment',
-        bodyweight: 'bodyweight only with no equipment'
+        home: 'home setup with dumbbells and minimal equipment',
+        bodyweight: 'bodyweight only with no equipment',
       }[formData.equipment]
-      
-      console.log('Selected equipment:', formData.equipment)
-      console.log('Equipment text:', equipmentText)
-      
+
       const prompt = `Create a detailed ${formData.daysPerWeek}-day per week workout plan for a ${formData.experience} level person who wants to ${goalText}. 
-      Each session should be about ${formData.duration} minutes.
-      Available equipment: ${equipmentText}.
-      
-      Format the response as JSON exactly like this example:
-      {
-        "name": "Plan Name Here",
-        "days": [
-          {
-            "day": "Day 1 - Upper Body Push",
-            "exercises": [
-              { "name": "Exercise Name", "sets": "3-4", "reps": "8-12", "notes": "Form tips" }
-            ]
-          }
-        ]
+Each session should be about ${formData.duration} minutes.
+Available equipment: ${equipmentText}.
+
+Return valid JSON only in this exact structure:
+{
+  "name": "Plan Name",
+  "days": [
+    {
+      "day": "Day 1 - Focus",
+      "exercises": [
+        { "name": "Exercise", "sets": "3-4", "reps": "8-12", "notes": "Form cue" }
+      ]
+    }
+  ]
+}
+
+Important: output exactly ${formData.daysPerWeek} day objects in the days array.`
+
+      const raw = await generateWithAI(prompt, 'workout')
+      const normalized = normalizeAIPlan(raw, formData)
+
+      if (!normalized?.days?.length) {
+        throw new Error('Invalid AI structure')
       }
-      
-      Make sure exercises match the available equipment: ${equipmentText}
-      If equipment is limited, suggest appropriate alternatives.`
-      
-      const aiResponse = await generateWithAI(prompt, 'workout')
-      
-      if (aiResponse) {
-        try {
-          let plan
-          if (typeof aiResponse === 'string') {
-            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/)
-            if (jsonMatch) {
-              plan = JSON.parse(jsonMatch[0])
-            } else {
-              plan = JSON.parse(aiResponse)
-            }
-          } else {
-            plan = aiResponse
-          }
-          setGeneratedPlan(plan)
-        } catch (e) {
-          console.error('Failed to parse AI response:', e)
-          const fallbackPlan = getFallbackPlan(formData)
-          setGeneratedPlan(fallbackPlan)
-        }
-      } else {
-        const fallbackPlan = getFallbackPlan(formData)
-        setGeneratedPlan(fallbackPlan)
-      }
-    } catch (error) {
-      console.error('Generation failed:', error)
+
+      setGeneratedPlan(normalized)
+      persistPlan(normalized, formData)
+      toast.success('Workout plan generated.')
+    } catch {
       setAiError(true)
-      const fallbackPlan = getFallbackPlan(formData)
-      setGeneratedPlan(fallbackPlan)
+      const fallback = getFallbackPlan(formData)
+      setGeneratedPlan(fallback)
+      persistPlan(fallback, formData)
+      toast.error('AI unavailable. Loaded smart fallback plan.')
     } finally {
       setIsGenerating(false)
     }
   }
 
-  // COMPLETE fallback plan function
-  const getFallbackPlan = (formData) => {
-    const equipment = formData.equipment || 'full_gym'
-    
-    if (equipment === 'bodyweight') {
-      return {
-        name: `${formData.daysPerWeek}-Day Bodyweight ${formData.goal === 'muscle_gain' ? 'Strength' : 'Fat Loss'} Plan`,
-        days: [
-          {
-            day: 'Day 1 - Upper Body',
-            exercises: [
-              { name: 'Push-ups', sets: '4', reps: '15-20', notes: 'Hands shoulder-width apart' },
-              { name: 'Diamond Push-ups', sets: '3', reps: '10-15', notes: 'For triceps focus' },
-              { name: 'Pike Push-ups', sets: '3', reps: '8-12', notes: 'For shoulders' },
-              { name: 'Plank', sets: '3', reps: '45-60 sec', notes: 'Keep core tight' }
-            ]
-          },
-          {
-            day: 'Day 2 - Lower Body',
-            exercises: [
-              { name: 'Bodyweight Squats', sets: '4', reps: '20-25', notes: 'Go as deep as possible' },
-              { name: 'Lunges', sets: '3', reps: '15 each leg', notes: 'Keep torso upright' },
-              { name: 'Glute Bridges', sets: '3', reps: '20', notes: 'Squeeze at the top' },
-              { name: 'Calf Raises', sets: '3', reps: '25', notes: 'Full range of motion' }
-            ]
-          },
-          {
-            day: 'Day 3 - Rest',
-            exercises: []
-          },
-          {
-            day: 'Day 4 - Full Body HIIT',
-            exercises: [
-              { name: 'Burpees', sets: '4', reps: '10-15', notes: 'Explosive movement' },
-              { name: 'Mountain Climbers', sets: '4', reps: '30 sec', notes: 'Keep hips down' },
-              { name: 'Jump Squats', sets: '3', reps: '15', notes: 'Land softly' },
-              { name: 'Plank Jacks', sets: '3', reps: '20', notes: 'Core engaged' }
-            ]
-          }
-        ]
-      }
-    }
-    
-    if (equipment === 'home') {
-      return {
-        name: `${formData.daysPerWeek}-Day Home Dumbbell ${formData.goal === 'muscle_gain' ? 'Strength' : 'Fat Loss'} Plan`,
-        days: [
-          {
-            day: 'Day 1 - Push Focus',
-            exercises: [
-              { name: 'Dumbbell Bench Press', sets: '4', reps: '10-12', notes: 'On floor or bench' },
-              { name: 'Dumbbell Shoulder Press', sets: '3', reps: '10-12', notes: 'Seated or standing' },
-              { name: 'Dumbbell Flyes', sets: '3', reps: '12-15', notes: 'Light weight, good form' },
-              { name: 'Tricep Extensions', sets: '3', reps: '12-15', notes: 'Overhead or lying' }
-            ]
-          },
-          {
-            day: 'Day 2 - Pull Focus',
-            exercises: [
-              { name: 'Dumbbell Rows', sets: '4', reps: '10-12', notes: 'Each arm' },
-              { name: 'Dumbbell Curls', sets: '3', reps: '12-15', notes: 'Supinate at top' },
-              { name: 'Hammer Curls', sets: '3', reps: '12-15', notes: 'Neutral grip' },
-              { name: 'Dumbbell Shrugs', sets: '3', reps: '15', notes: 'For traps' }
-            ]
-          },
-          {
-            day: 'Day 3 - Legs',
-            exercises: [
-              { name: 'Goblet Squats', sets: '4', reps: '12-15', notes: 'Hold one dumbbell' },
-              { name: 'Dumbbell Lunges', sets: '3', reps: '12 each leg', notes: 'Keep chest up' },
-              { name: 'Romanian Deadlifts', sets: '3', reps: '10-12', notes: 'Feel hamstring stretch' },
-              { name: 'Calf Raises', sets: '4', reps: '20', notes: 'Hold dumbbells' }
-            ]
-          }
-        ]
-      }
-    }
-    
-    // Default full gym plan
-    return {
-      name: `${formData.daysPerWeek}-Day Gym ${formData.goal === 'muscle_gain' ? 'Hypertrophy' : 'Fat Loss'} Plan`,
-      days: [
-        {
-          day: 'Day 1 - Chest & Triceps',
-          exercises: [
-            { name: 'Barbell Bench Press', sets: '4', reps: '8-12', notes: 'Retract scapula' },
-            { name: 'Incline Dumbbell Press', sets: '3', reps: '10-12', notes: '30-45° incline' },
-            { name: 'Cable Crossovers', sets: '3', reps: '12-15', notes: 'Squeeze at peak' },
-            { name: 'Tricep Pushdowns', sets: '3', reps: '12-15', notes: 'Keep elbows locked' }
-          ]
-        },
-        {
-          day: 'Day 2 - Back & Biceps',
-          exercises: [
-            { name: 'Lat Pulldowns', sets: '4', reps: '10-12', notes: 'Pull to upper chest' },
-            { name: 'Seated Cable Rows', sets: '3', reps: '10-12', notes: 'Squeeze shoulder blades' },
-            { name: 'Barbell Curls', sets: '3', reps: '10-12', notes: 'No swinging' },
-            { name: 'Hammer Curls', sets: '3', reps: '12-15', notes: 'Thumbs up grip' }
-          ]
-        },
-        {
-          day: 'Day 3 - Legs',
-          exercises: [
-            { name: 'Barbell Squats', sets: '4', reps: '8-10', notes: 'Below parallel' },
-            { name: 'Leg Press', sets: '3', reps: '10-12', notes: 'Don\'t lock knees' },
-            { name: 'Romanian Deadlifts', sets: '3', reps: '8-10', notes: 'Hip hinge' },
-            { name: 'Calf Raises', sets: '4', reps: '15-20', notes: 'Full stretch' }
-          ]
-        }
-      ]
-    }
-  }
-
-  // Rest of your component JSX remains exactly the same
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-black text-slate-100 relative overflow-x-hidden">
-      {/* Atmospheric background elements */}
-      <div className="absolute top-1/4 -left-1/4 w-[800px] h-[800px] bg-gradient-to-br from-emerald-500/5 to-transparent rounded-full blur-3xl -z-10" />
-      <div className="absolute bottom-1/3 -right-1/4 w-[600px] h-[600px] bg-gradient-to-tl from-blue-500/5 to-transparent rounded-full blur-3xl -z-10" />
-      
-      {/* Header */}
-      <motion.header 
-        className="py-6 px-8 flex items-center justify-between sticky top-0 z-50 bg-slate-950/80 backdrop-blur-sm"
-        initial={{ y: -50, opacity: 0 }}
+    <div className="min-h-screen text-zinc-100 relative overflow-x-hidden" style={{ background: CALC_COLORS.page }}>
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(circle at 20% 10%, rgba(255,255,255,0.09), transparent 40%), radial-gradient(circle at 85% 85%, rgba(239,68,68,0.10), transparent 50%)',
+        }}
+      />
+
+      <motion.header
+        className="sticky top-0 z-50 px-4 md:px-8 h-20 flex items-center justify-between"
+        style={{ background: 'rgba(6,8,11,0.82)', backdropFilter: 'blur(10px)', borderBottom: `1px solid ${MATTE.borderSoft}` }}
+        initial={{ y: -30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
       >
-        <div className="flex items-center gap-5">
-          <motion.button 
+        <div className="flex items-center gap-3 md:gap-4">
+          <motion.button
             onClick={() => navigate('/dashboard')}
-            className="text-slate-400 hover:text-emerald-400 transition-colors p-2.5 rounded-full hover:bg-slate-800/60"
-            whileHover={{ x: -3 }}
-            whileTap={{ scale: 0.95 }}
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${CALC_COLORS.accent}66` }}
+            whileHover={{ x: -2 }}
+            whileTap={{ scale: 0.96 }}
           >
-            <ArrowLeft size={24} strokeWidth={1.8} />
+            <ArrowLeft size={18} style={{ color: CALC_COLORS.accent }} />
           </motion.button>
           <div>
-            <h1 className="text-2.5xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-200 to-slate-400">
-              AI Workout Generator
-            </h1>
-            <p className="text-slate-500 text-sm mt-1.5 ml-1">Powered by Grok AI</p>
+            <p className="text-[9px] font-black uppercase tracking-[0.34em] text-zinc-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>Engine Module</p>
+            <h1 className="text-lg md:text-2xl font-black uppercase tracking-[0.1em]" style={{ color: CALC_COLORS.accent }}>Workout Plan</h1>
           </div>
         </div>
-        {generatedPlan && (
+
+        {generatedPlan ? (
           <motion.button
             onClick={generatePlan}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="p-3 bg-emerald-600/20 hover:bg-emerald-600/30 rounded-xl border border-emerald-500/30 flex items-center gap-2"
+            whileHover={{ scale: isGenerating ? 1 : 1.02 }}
+            whileTap={{ scale: isGenerating ? 1 : 0.98 }}
+            disabled={isGenerating}
+            className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg disabled:opacity-60"
+            style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${MATTE.borderSoft}` }}
           >
-            <Sparkles size={20} className="text-emerald-400" />
-            <span className="text-sm font-medium text-emerald-400">Regenerate with AI</span>
+            <RefreshCw size={15} style={{ color: CALC_COLORS.signal }} className={isGenerating ? 'animate-spin' : ''} />
+            <span className="text-xs font-black uppercase tracking-[0.12em]" style={{ color: CALC_COLORS.accent, fontFamily: 'JetBrains Mono, monospace' }}>
+              Regenerate
+            </span>
           </motion.button>
-        )}
+        ) : null}
       </motion.header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="grid lg:grid-cols-2 gap-10">
-          {/* Form Section */}
-          <motion.div 
-            className="space-y-9"
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            {/* Goal Selection */}
-            <div className="space-y-3">
-              <h2 className="text-2xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                What's Your Goal?
-              </h2>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <motion.button
-                  onClick={() => setFormData({...formData, goal: 'muscle_gain'})}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={`group relative p-6 rounded-2xl overflow-hidden transition-all ${
-                    formData.goal === 'muscle_gain'
-                      ? 'bg-gradient-to-br from-emerald-600 to-emerald-700'
-                      : 'bg-slate-800/50 border border-slate-700/50 hover:border-emerald-500/30'
-                  }`}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="relative flex flex-col items-center gap-4">
-                    <Dumbbell className={`w-10 h-10 ${formData.goal === 'muscle_gain' ? 'text-white' : 'text-emerald-400'}`} strokeWidth={1.8} />
-                    <div className="text-center">
-                      <p className={`text-lg font-medium ${formData.goal === 'muscle_gain' ? 'text-white' : 'text-slate-200'}`}>
-                        Build Muscle
-                      </p>
-                      <p className={`text-sm mt-1 ${formData.goal === 'muscle_gain' ? 'text-emerald-100/90' : 'text-slate-400'}`}>
-                        Strength & hypertrophy
-                      </p>
-                    </div>
-                    {formData.goal === 'muscle_gain' && (
-                      <CheckCircle className="absolute top-3 right-3 text-white" size={20} strokeWidth={2.5} />
-                    )}
-                  </div>
-                </motion.button>
-                
-                <motion.button
-                  onClick={() => setFormData({...formData, goal: 'weight_loss'})}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.98 }}
-                  className={`group relative p-6 rounded-2xl overflow-hidden transition-all ${
-                    formData.goal === 'weight_loss'
-                      ? 'bg-gradient-to-br from-amber-600 to-amber-700'
-                      : 'bg-slate-800/50 border border-slate-700/50 hover:border-amber-500/30'
-                  }`}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="relative flex flex-col items-center gap-4">
-                    <Flame className={`w-10 h-10 ${formData.goal === 'weight_loss' ? 'text-white' : 'text-amber-400'}`} strokeWidth={1.8} />
-                    <div className="text-center">
-                      <p className={`text-lg font-medium ${formData.goal === 'weight_loss' ? 'text-white' : 'text-slate-200'}`}>
-                        Lose Weight
-                      </p>
-                      <p className={`text-sm mt-1 ${formData.goal === 'weight_loss' ? 'text-amber-100/90' : 'text-slate-400'}`}>
-                        Burn fat & get lean
-                      </p>
-                    </div>
-                    {formData.goal === 'weight_loss' && (
-                      <CheckCircle className="absolute top-3 right-3 text-white" size={20} strokeWidth={2.5} />
-                    )}
-                  </div>
-                </motion.button>
-              </div>
+      <main className="max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-8 grid xl:grid-cols-12 gap-6 relative z-10">
+        <motion.section
+          className="xl:col-span-4 rounded-2xl p-5 md:p-6"
+          style={{ background: MATTE.panel, border: `1px solid ${MATTE.borderSoft}` }}
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          <p className="text-xs font-black uppercase tracking-[0.28em] text-zinc-300 mb-4" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+            Plan Inputs
+          </p>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setFormData((prev) => ({ ...prev, goal: 'muscle_gain' }))}
+                className="rounded-xl p-3 text-left"
+                style={{ background: formData.goal === 'muscle_gain' ? 'rgba(255,255,255,0.14)' : MATTE.inset, border: `1px solid ${MATTE.borderSoft}` }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Dumbbell size={14} style={{ color: CALC_COLORS.accent }} />
+                  <p className="text-sm font-semibold text-zinc-100">Muscle</p>
+                </div>
+                <p className="text-xs text-zinc-500">Strength and size</p>
+              </button>
+              <button
+                onClick={() => setFormData((prev) => ({ ...prev, goal: 'weight_loss' }))}
+                className="rounded-xl p-3 text-left"
+                style={{ background: formData.goal === 'weight_loss' ? 'rgba(255,255,255,0.14)' : MATTE.inset, border: `1px solid ${MATTE.borderSoft}` }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <Flame size={14} style={{ color: CALC_COLORS.signal }} />
+                  <p className="text-sm font-semibold text-zinc-100">Fat Loss</p>
+                </div>
+                <p className="text-xs text-zinc-500">Conditioning focus</p>
+              </button>
             </div>
 
-            {/* Experience Level */}
-            <div className="space-y-3">
-              <h2 className="text-2xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                Experience Level
-              </h2>
-              
-              <div className="grid grid-cols-3 gap-3">
-                {['beginner', 'intermediate', 'advanced'].map((level) => (
-                  <motion.button
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500 mb-2 block" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                Experience
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {EXPERIENCE.map((level) => (
+                  <button
                     key={level}
-                    onClick={() => setFormData({...formData, experience: level})}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={`group relative p-4 rounded-xl overflow-hidden transition-all ${
-                      formData.experience === level
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700'
-                        : 'bg-slate-800/50 border border-slate-700/50 hover:border-blue-500/30'
-                    }`}
+                    onClick={() => setFormData((prev) => ({ ...prev, experience: level }))}
+                    className="rounded-lg py-2 text-xs font-semibold capitalize"
+                    style={{ background: formData.experience === level ? 'rgba(255,255,255,0.14)' : MATTE.inset, border: `1px solid ${MATTE.borderSoft}` }}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative text-center">
-                      <p className={`font-medium capitalize ${formData.experience === level ? 'text-white' : 'text-slate-200'}`}>
-                        {level}
-                      </p>
-                    </div>
-                  </motion.button>
+                    {level}
+                  </button>
                 ))}
               </div>
             </div>
 
-            {/* Equipment Selection */}
-            <div className="space-y-3">
-              <h2 className="text-2xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                Available Equipment
-              </h2>
-              
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { value: 'full_gym', label: 'Full Gym' },
-                  { value: 'home', label: 'Home Gym' },
-                  { value: 'bodyweight', label: 'Bodyweight' }
-                ].map((eq) => (
-                  <motion.button
-                    key={eq.value}
-                    onClick={() => setFormData({...formData, equipment: eq.value})}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={`group relative p-3 rounded-xl overflow-hidden transition-all ${
-                      formData.equipment === eq.value
-                        ? 'bg-gradient-to-r from-purple-600 to-purple-700'
-                        : 'bg-slate-800/50 border border-slate-700/50 hover:border-purple-500/30'
-                    }`}
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500 mb-2 block" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                Equipment
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {EQUIPMENT.map((item) => (
+                  <button
+                    key={item.value}
+                    onClick={() => setFormData((prev) => ({ ...prev, equipment: item.value }))}
+                    className="rounded-lg py-2 text-[11px] font-semibold"
+                    style={{ background: formData.equipment === item.value ? 'rgba(255,255,255,0.14)' : MATTE.inset, border: `1px solid ${MATTE.borderSoft}` }}
                   >
-                    <div className="relative text-center">
-                      <p className={`text-sm font-medium ${formData.equipment === eq.value ? 'text-white' : 'text-slate-200'}`}>
-                        {eq.label}
-                      </p>
-                    </div>
-                  </motion.button>
+                    {item.label}
+                  </button>
                 ))}
               </div>
             </div>
 
-            {/* Training Frequency */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                  Training Frequency
-                </h2>
-                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-blue-500">
-                  {formData.daysPerWeek} days
-                </span>
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                  Days Per Week
+                </label>
+                <span className="text-sm font-bold text-zinc-200">{formData.daysPerWeek}</span>
               </div>
-              
-              <div className="space-y-2">
-                <input
-                  type="range"
-                  min="3"
-                  max="6"
-                  value={formData.daysPerWeek}
-                  onChange={(e) => setFormData({...formData, daysPerWeek: parseInt(e.target.value)})}
-                  className="w-full h-2 bg-slate-800/50 rounded-full appearance-none cursor-pointer accent-emerald-500"
-                />
-                <div className="flex justify-between text-slate-500 text-sm">
-                  <span>3 days/week</span>
-                  <span>6 days/week</span>
-                </div>
-              </div>
+              <input
+                type="range"
+                min="3"
+                max="6"
+                value={formData.daysPerWeek}
+                onChange={(e) => setFormData((prev) => ({ ...prev, daysPerWeek: Number(e.target.value) }))}
+                className="w-full"
+              />
             </div>
 
-            {/* Workout Duration */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                  Session Length
-                </h2>
-                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-400 to-orange-500">
-                  {formData.duration} min
-                </span>
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                  Session Minutes
+                </label>
+                <span className="text-sm font-bold text-zinc-200">{formData.duration}</span>
               </div>
-              
-              <div className="space-y-2">
-                <input
-                  type="range"
-                  min="30"
-                  max="120"
-                  step="15"
-                  value={formData.duration}
-                  onChange={(e) => setFormData({...formData, duration: parseInt(e.target.value)})}
-                  className="w-full h-2 bg-slate-800/50 rounded-full appearance-none cursor-pointer accent-amber-500"
-                />
-                <div className="flex justify-between text-slate-500 text-sm">
-                  <span>30 minutes</span>
-                  <span>2 hours</span>
-                </div>
-              </div>
+              <input
+                type="range"
+                min="30"
+                max="120"
+                step="15"
+                value={formData.duration}
+                onChange={(e) => setFormData((prev) => ({ ...prev, duration: Number(e.target.value) }))}
+                className="w-full"
+              />
             </div>
 
-            {/* Generate Button */}
             <motion.button
               onClick={generatePlan}
               disabled={isGenerating}
-              whileHover={{ scale: isGenerating ? 1 : 1.03 }}
-              whileTap={{ scale: isGenerating ? 1 : 0.97 }}
-              className="group relative w-full py-5 rounded-xl overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+              whileHover={{ scale: isGenerating ? 1 : 1.01 }}
+              whileTap={{ scale: isGenerating ? 1 : 0.98 }}
+              className="w-full py-3.5 rounded-xl text-black font-black uppercase tracking-[0.16em] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ background: `linear-gradient(120deg, ${CALC_COLORS.accent} 0%, #f3f4f6 100%)` }}
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-blue-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="relative flex items-center justify-center gap-3 text-slate-200 group-hover:text-white font-medium text-lg">
-                {isGenerating ? (
-                  <>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    >
-                      <RefreshCw size={24} strokeWidth={2} />
-                    </motion.div>
-                    <span>AI is Creating Your Plan...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={24} strokeWidth={2} className="text-emerald-400" />
-                    <span>Generate AI Workout Plan</span>
-                    <ChevronRight size={20} strokeWidth={2.5} className="group-hover:translate-x-1 transition-transform" />
-                  </>
-                )}
-              </div>
+              {isGenerating ? <RefreshCw size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              {isGenerating ? 'Generating...' : 'Generate Plan'}
             </motion.button>
 
-            {aiError && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-center"
-              >
-                <p className="text-red-400 text-sm">AI service unavailable. Using pre-built plans.</p>
-              </motion.div>
-            )}
-          </motion.div>
-
-          {/* Generated Plan Section */}
-          <motion.div 
-            className="space-y-8"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            {generatedPlan ? (
-              <>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h2 className="text-3xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                        {generatedPlan.name}
-                      </h2>
-                      <p className="text-slate-400 mt-2 flex items-center gap-2">
-                        <Sparkles size={16} className="text-emerald-400" />
-                        AI-generated for your goals
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-3">
-                    <span className="px-4 py-2 bg-emerald-500/10 text-emerald-400 font-medium rounded-full">
-                      🎯 {formData.goal === 'muscle_gain' ? 'Muscle Gain' : 'Weight Loss'}
-                    </span>
-                    <span className="px-4 py-2 bg-blue-500/10 text-blue-400 font-medium rounded-full">
-                      💪 {formData.experience.charAt(0).toUpperCase() + formData.experience.slice(1)}
-                    </span>
-                    <span className="px-4 py-2 bg-amber-500/10 text-amber-400 font-medium rounded-full">
-                      📅 {formData.daysPerWeek} days/week
-                    </span>
-                    <span className="px-4 py-2 bg-purple-500/10 text-purple-400 font-medium rounded-full">
-                      ⏱️ {formData.duration} min
-                    </span>
-                    <span className="px-4 py-2 bg-indigo-500/10 text-indigo-400 font-medium rounded-full">
-                      🏋️ {formData.equipment === 'full_gym' ? 'Full Gym' : formData.equipment === 'home' ? 'Home' : 'Bodyweight'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                  {generatedPlan.days.map((day, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className={`group relative p-6 rounded-2xl border ${
-                        day.exercises.length > 0 
-                          ? 'bg-slate-900/50 border-slate-700/50 hover:border-emerald-500/30'
-                          : 'bg-slate-800/30 border-dashed border-slate-700/50'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xl font-medium bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-blue-500">
-                          {day.day}
-                        </h3>
-                        {day.exercises.length > 0 && (
-                          <span className="text-sm text-slate-400">
-                            {day.exercises.length} exercises
-                          </span>
-                        )}
-                      </div>
-                      
-                      {day.exercises.length > 0 ? (
-                        <div className="space-y-3">
-                          {day.exercises.map((exercise, exIndex) => (
-                            <motion.div
-                              key={exIndex}
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: index * 0.1 + exIndex * 0.05 }}
-                              className="p-4 bg-slate-900/40 rounded-xl hover:bg-slate-800/60 transition-colors"
-                            >
-                              <div className="flex flex-col gap-2">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    <span className="font-medium text-slate-100">{exercise.name}</span>
-                                  </div>
-                                  <span className="text-slate-400 font-medium text-sm">
-                                    {exercise.sets} × {exercise.reps}
-                                  </span>
-                                </div>
-                                {exercise.notes && (
-                                  <p className="text-xs text-slate-500 italic pl-6">{exercise.notes}</p>
-                                )}
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-slate-400 italic text-center py-4">
-                          Rest day - Focus on recovery and active stretching
-                        </p>
-                      )}
-                    </motion.div>
-                  ))}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-800/50">
-                  <motion.button
-                    onClick={() => exportWorkoutPlanToPDF(generatedPlan, formData)}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="group relative p-4 rounded-xl overflow-hidden border border-blue-500/30"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative flex items-center justify-center gap-2 text-blue-400 font-medium">
-                      <Download size={20} strokeWidth={1.8} />
-                      <span>Export Plan</span>
-                    </div>
-                  </motion.button>
-                  
-                  <motion.button
-                    onClick={() => navigate('/workout')}
-                    whileHover={{ scale: 1.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    className="group relative p-4 rounded-xl overflow-hidden bg-gradient-to-r from-emerald-600 to-blue-600"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <div className="relative flex items-center justify-center gap-2 text-white font-medium">
-                      Start Workout
-                      <ChevronRight size={20} strokeWidth={2} className="group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </motion.button>
-                </div>
-              </>
-            ) : (
-              <div className="h-full flex items-center justify-center text-center py-16">
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 0.3 }}
-                  className="space-y-6"
-                >
-                  <div className="relative w-24 h-24 mx-auto">
-                    <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-blue-500/20 rounded-full blur-xl" />
-                    <div className="relative bg-slate-800/50 rounded-full p-5 flex items-center justify-center">
-                      <Sparkles className="text-emerald-500" size={48} strokeWidth={1.8} />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3 max-w-md mx-auto">
-                    <h2 className="text-3xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                      AI-Powered Plans
-                    </h2>
-                    <p className="text-slate-400 text-lg">
-                      Select your preferences and let Grok AI create a custom workout plan tailored just for you.
-                    </p>
-                  </div>
-                  
-                  <motion.div
-                    animate={{ y: [0, 10, 0] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="mx-auto w-12 h-12 bg-gradient-to-br from-emerald-500/20 to-blue-500/20 rounded-full flex items-center justify-center"
-                  >
-                    <ChevronRight className="text-emerald-500" size={24} strokeWidth={2} />
-                  </motion.div>
-                </motion.div>
+            {aiError ? (
+              <div className="rounded-xl px-3 py-2 text-xs" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#fca5a5' }}>
+                AI service fallback applied. You still got a complete plan.
               </div>
-            )}
-          </motion.div>
-        </div>
-      </div>
+            ) : null}
+          </div>
+        </motion.section>
 
-      {/* Custom scrollbar */}
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(0,0,0,0.3);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(59, 130, 246, 0.3);
-          border-radius: 10px;
-          border: 2px solid transparent;
-          background-clip: content-box;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(59, 130, 246, 0.5);
+        <motion.section
+          className="xl:col-span-8 rounded-2xl p-5 md:p-6"
+          style={{ background: MATTE.panel, border: `1px solid ${MATTE.borderSoft}` }}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+        >
+          {generatedPlan ? (
+            <>
+              <div className="flex items-start justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.28em] text-zinc-500 mb-1" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                    Generated Plan
+                  </p>
+                  <h2 className="text-2xl font-black text-zinc-100">{generatedPlan.name}</h2>
+                </div>
+                <button
+                  onClick={() => exportWorkoutPlanToPDF(generatedPlan, formData)}
+                  className="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-[0.12em] flex items-center gap-2"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${MATTE.borderSoft}`, color: CALC_COLORS.accent }}
+                >
+                  <Download size={14} /> Export PDF
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mb-5">
+                {badgeData.map((badge) => {
+                  const Icon = badge.icon
+                  return (
+                    <span key={badge.label} className="px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5" style={{ background: MATTE.inset, border: `1px solid ${MATTE.borderSoft}`, color: '#cbd5e1' }}>
+                      <Icon size={12} /> {badge.label}
+                    </span>
+                  )
+                })}
+              </div>
+
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                {generatedPlan.days.map((day, i) => (
+                  <div key={`${day.day}-${i}`} className="rounded-xl p-4" style={{ background: MATTE.inset, border: `1px solid ${MATTE.borderSoft}` }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-zinc-100 font-semibold">{day.day}</h3>
+                      <span className="text-xs text-zinc-500">
+                        {day.exercises.length > 0 ? `${day.exercises.length} exercises` : 'Recovery'}
+                      </span>
+                    </div>
+
+                    {day.exercises.length > 0 ? (
+                      <div className="space-y-2">
+                        {day.exercises.map((exercise, exIndex) => (
+                          <div key={`${exercise.name}-${exIndex}`} className="rounded-lg px-3 py-2" style={{ background: 'rgba(0,0,0,0.35)', border: `1px solid ${MATTE.borderSoft}` }}>
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm text-zinc-100 font-medium">{exercise.name}</p>
+                              <p className="text-xs text-zinc-400">{exercise.sets} x {exercise.reps}</p>
+                            </div>
+                            {exercise.notes ? <p className="text-xs text-zinc-500 mt-1">{exercise.notes}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-zinc-500 italic">Rest day. Walk, stretch, recover.</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 mt-5">
+                <button
+                  onClick={() => navigate('/workout')}
+                  className="py-3 rounded-xl text-sm font-bold uppercase tracking-[0.12em] flex items-center justify-center gap-2"
+                  style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${MATTE.borderSoft}`, color: CALC_COLORS.accent }}
+                >
+                  <History size={15} /> Open Workout Tracker
+                </button>
+                <button
+                  onClick={generatePlan}
+                  disabled={isGenerating}
+                  className="py-3 rounded-xl text-sm font-bold uppercase tracking-[0.12em] flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={{ background: 'rgba(239,68,68,0.16)', border: '1px solid rgba(239,68,68,0.35)', color: '#fecaca' }}
+                >
+                  <RefreshCw size={15} className={isGenerating ? 'animate-spin' : ''} /> Rebuild Plan
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="h-full min-h-[420px] flex items-center justify-center text-center">
+              <div className="max-w-lg">
+                <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${MATTE.borderSoft}` }}>
+                  <Sparkles size={28} style={{ color: CALC_COLORS.signal }} />
+                </div>
+                <h2 className="text-2xl font-black text-zinc-100 mb-2">AI Workout Blueprint</h2>
+                <p className="text-zinc-500 mb-4">Set your goal, level, days, and equipment. Then generate a complete schedule with exercise details.</p>
+                <div className="inline-flex items-center gap-2 text-zinc-400 text-sm">
+                  <CheckCircle size={15} /> Includes fallback plan if AI is offline
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.section>
+      </main>
+
+      <style>{`
+        input[type='range'] {
+          accent-color: #9ca3af;
         }
       `}</style>
     </div>

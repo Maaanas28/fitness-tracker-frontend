@@ -20,7 +20,7 @@ export const exportWorkoutPlanToPDF = (plan, formData) => {
   
   let yPos = 70
   
-  plan.days.forEach((day, index) => {
+  plan.days.forEach((day) => {
     if (day.exercises.length === 0) return
     
     doc.setFontSize(14)

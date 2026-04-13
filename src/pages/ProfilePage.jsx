@@ -1,582 +1,904 @@
-import { useState, useEffect } from 'react' // <-- ADD useEffect here
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, Mail, Phone, Calendar, Target, Activity, Ruler, Weight, Edit, Save, X, Camera, Settings, Bell, Lock, LogOut, ChevronRight } from 'lucide-react'
+import {
+  ArrowLeft,
+  User,
+  Mail,
+  Phone,
+  Calendar,
+  Target,
+  Activity,
+  Ruler,
+  Weight,
+  Edit,
+  Camera,
+  Settings,
+  LogOut,
+  ChevronRight,
+} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import toast from 'react-hot-toast'
+import { changePassword, generate2FA, verify2FA, disable2FA } from '../services/api'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
+const getToken = () => {
+  const t = localStorage.getItem('token')
+  return t && t !== 'null' && t !== 'undefined' && t !== 'demo-token-skip-auth' ? t : null
+}
+
+const DEFAULT_PROFILE = {
+  name: '',
+  email: '',
+  avatar: '',
+  phone: '',
+  age: '',
+  gender: 'Male',
+  height: '',
+  currentWeight: '',
+  goalWeight: '',
+  activityLevel: 'Moderate',
+  fitnessGoal: 'General Fitness',
+  joinDate: new Date().toISOString().split('T')[0],
+}
 
 function ProfilePage() {
   const navigate = useNavigate()
+  const avatarInputRef = useRef(null)
   const [isEditing, setIsEditing] = useState(false)
   const [activeTab, setActiveTab] = useState('profile')
-  const [profileData, setProfileData] = useState({
-    name: 'Alex Morgan',
-    email: 'alex.morgan@example.com',
-    phone: '+1 (415) 555-0198',
-    age: 28,
-    gender: 'Male',
-    height: 178,
-    currentWeight: 82.3,
-    goalWeight: 76,
-    activityLevel: 'Active',
-    fitnessGoal: 'Strength Building',
-    joinDate: '2025-11-15'
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [securityLoading, setSecurityLoading] = useState(false)
+  const [securityModal, setSecurityModal] = useState(null)
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false)
+  const [twoFactorSetup, setTwoFactorSetup] = useState({ qrCode: '', secret: '' })
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [profileData, setProfileData] = useState({ ...DEFAULT_PROFILE })
+  const [tempData, setTempData] = useState({ ...DEFAULT_PROFILE })
+  const [notificationSettings, setNotificationSettings] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('profileNotificationSettings') || 'null')
+      if (saved) return saved
+    } catch {
+      // Ignore malformed localStorage payloads and fall back to defaults.
+    }
+    return {
+      workoutReminders: true,
+      progressReports: true,
+      nutritionTips: false,
+    }
   })
-  const [tempData, setTempData] = useState({...profileData})
 
-  // âœ… CORRECT: useEffect inside the component, after state declarations
   useEffect(() => {
-    localStorage.setItem('userProfile', JSON.stringify(profileData))
-  }, [profileData])
+    const token = getToken()
+    if (!token) {
+      try {
+        const saved = localStorage.getItem('userProfile')
+        if (saved) {
+          const parsed = JSON.parse(saved)
+          const merged = { ...DEFAULT_PROFILE, ...parsed }
+          setProfileData(merged)
+          setTempData(merged)
+        }
+        const user = JSON.parse(localStorage.getItem('user') || 'null')
+        if (user) {
+          setProfileData((prev) => ({
+            ...prev,
+            name: user.name || prev.name,
+            email: user.email || prev.email,
+            avatar: user.profileData?.avatar || prev.avatar,
+          }))
+          setTwoFactorEnabled(Boolean(user.twoFactorEnabled))
+        }
+      } catch {
+        // Ignore malformed local storage user payload.
+      }
+      setLoading(false)
+      return
+    }
+
+    fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((user) => {
+        if (user?.email) {
+          const pd = {
+            name: user.name || '',
+            email: user.email || '',
+            avatar: user.profileData?.avatar || '',
+            phone: user.profileData?.phone || '',
+            age: user.profileData?.age || '',
+            gender: user.profileData?.gender || 'Male',
+            height: user.profileData?.height || '',
+            currentWeight: user.profileData?.weight || '',
+            goalWeight: user.profileData?.goalWeight || '',
+            activityLevel: user.profileData?.activityLevel || 'Moderate',
+            fitnessGoal: user.profileData?.fitnessGoal || 'General Fitness',
+            joinDate: user.createdAt?.split('T')[0] || DEFAULT_PROFILE.joinDate,
+          }
+          setProfileData(pd)
+          setTempData(pd)
+          setTwoFactorEnabled(Boolean(user.twoFactorEnabled))
+        }
+      })
+      .catch(() => {
+        try {
+          const saved = localStorage.getItem('userProfile')
+          if (saved) {
+            const parsed = JSON.parse(saved)
+            const merged = { ...DEFAULT_PROFILE, ...parsed }
+            setProfileData(merged)
+            setTempData(merged)
+          }
+        } catch {
+          // Ignore malformed cached profile and continue with API data.
+        }
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const numOrUndefined = (value) => {
+    if (value === '' || value == null) return undefined
+    const n = Number(value)
+    return Number.isFinite(n) ? n : undefined
+  }
 
   const handleEdit = () => {
-    setTempData({...profileData})
+    setTempData({ ...profileData })
     setIsEditing(true)
   }
 
-  const handleSave = () => {
-    setProfileData({...tempData})
+  const handleSave = async () => {
+    setSaving(true)
+    const token = getToken()
+
+    if (token) {
+      try {
+        const res = await fetch(`${API_URL}/auth/profile`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            age: numOrUndefined(tempData.age),
+            gender: tempData.gender,
+            weight: numOrUndefined(tempData.currentWeight),
+            height: numOrUndefined(tempData.height),
+            goalWeight: numOrUndefined(tempData.goalWeight),
+            activityLevel: tempData.activityLevel,
+            fitnessGoal: tempData.fitnessGoal,
+            phone: tempData.phone,
+            avatar: tempData.avatar || '',
+          }),
+        })
+        if (res.ok) {
+          toast.success('Profile saved!')
+        } else {
+          toast.error('Failed to save to server, saved locally.')
+        }
+      } catch {
+        toast.error('Server offline - saved locally.')
+      }
+    } else {
+      toast.success('Profile saved locally!')
+    }
+
+    setProfileData({ ...tempData })
+    localStorage.setItem('userProfile', JSON.stringify(tempData))
     setIsEditing(false)
+    setSaving(false)
   }
 
   const handleCancel = () => {
-    setTempData({...profileData})
+    setTempData({ ...profileData })
     setIsEditing(false)
   }
 
+  const handleAvatarUpload = (files) => {
+    const file = files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file.')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image too large. Max 5MB.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : ''
+      if (!dataUrl) {
+        toast.error('Could not read image.')
+        return
+      }
+      setTempData((prev) => ({ ...prev, avatar: dataUrl }))
+      if (!isEditing) setIsEditing(true)
+      toast.success('Avatar selected. Click Save to apply.')
+    }
+    reader.onerror = () => toast.error('Could not read image.')
+    reader.readAsDataURL(file)
+  }
+
+  const toggleNotificationSetting = (key) => {
+    setNotificationSettings((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      localStorage.setItem('profileNotificationSettings', JSON.stringify(next))
+      return next
+    })
+  }
+
+  const handleSignOut = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    toast.success('Signed out')
+    navigate('/login')
+  }
+
+  const handleChangePassword = async () => {
+    const { currentPassword, newPassword, confirmPassword } = passwordForm
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error('Please complete all password fields.')
+      return
+    }
+    if (newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Password confirmation does not match.')
+      return
+    }
+
+    setSecurityLoading(true)
+    try {
+      await changePassword(currentPassword, newPassword)
+      toast.success('Password changed successfully.')
+      setSecurityModal(null)
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    } catch (error) {
+      toast.error(error?.message || 'Could not change password.')
+    } finally {
+      setSecurityLoading(false)
+    }
+  }
+
+  const handleEnable2FAStart = async () => {
+    setSecurityLoading(true)
+    try {
+      const setup = await generate2FA()
+      setTwoFactorSetup({ qrCode: setup.qrCode || '', secret: setup.secret || '' })
+      setTwoFactorCode('')
+      setSecurityModal('2fa-enable')
+    } catch (error) {
+      toast.error(error?.message || 'Failed to generate 2FA setup.')
+    } finally {
+      setSecurityLoading(false)
+    }
+  }
+
+  const handleEnable2FAConfirm = async () => {
+    if (!twoFactorCode.trim()) {
+      toast.error('Enter verification code from your authenticator app.')
+      return
+    }
+
+    setSecurityLoading(true)
+    try {
+      await verify2FA(twoFactorCode.trim())
+      setTwoFactorEnabled(true)
+      toast.success('Two-factor authentication enabled.')
+      setSecurityModal(null)
+      setTwoFactorCode('')
+      setTwoFactorSetup({ qrCode: '', secret: '' })
+    } catch (error) {
+      toast.error(error?.message || 'Invalid verification code.')
+    } finally {
+      setSecurityLoading(false)
+    }
+  }
+
+  const handleDisable2FAConfirm = async () => {
+    if (!twoFactorCode.trim()) {
+      toast.error('Enter your authenticator code to disable 2FA.')
+      return
+    }
+
+    setSecurityLoading(true)
+    try {
+      await disable2FA(twoFactorCode.trim())
+      setTwoFactorEnabled(false)
+      toast.success('Two-factor authentication disabled.')
+      setSecurityModal(null)
+      setTwoFactorCode('')
+    } catch (error) {
+      toast.error(error?.message || 'Could not disable 2FA.')
+    } finally {
+      setSecurityLoading(false)
+    }
+  }
+
+  const handleExportData = async () => {
+    const token = getToken()
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+
+    const loadEndpoint = async (path) => {
+      const res = await fetch(`${API_URL}${path}`, { headers })
+      if (!res.ok) return null
+      return res.json()
+    }
+
+    setSecurityLoading(true)
+    try {
+      const [workouts, meals, progress, water] = await Promise.all([
+        loadEndpoint('/workouts'),
+        loadEndpoint('/meals'),
+        loadEndpoint('/progress'),
+        loadEndpoint('/water'),
+      ])
+
+      const exportPayload = {
+        exportedAt: new Date().toISOString(),
+        profile: profileData,
+        notifications: notificationSettings,
+        data: {
+          workouts: workouts || [],
+          meals: meals || [],
+          progress: progress || [],
+          water: water || [],
+        },
+      }
+
+      const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `fitness-export-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(link.href)
+
+      toast.success('Your data export is ready.')
+    } catch {
+      toast.error('Failed to export data.')
+    } finally {
+      setSecurityLoading(false)
+    }
+  }
+
+  const currentWeightNum = Number(profileData.currentWeight) || 0
+  const goalWeightNum = Number(profileData.goalWeight) || 0
+  const hasWeightTargets = currentWeightNum > 0 && goalWeightNum > 0
+  const goalGap = hasWeightTargets ? Number(Math.abs(currentWeightNum - goalWeightNum).toFixed(1)) : null
+  const journeyPct = hasWeightTargets
+    ? Math.min(
+        100,
+        Math.max(
+          5,
+          Math.round(
+            (currentWeightNum <= goalWeightNum
+              ? currentWeightNum / goalWeightNum
+              : goalWeightNum / currentWeightNum) * 100
+          )
+        )
+      )
+    : 0
+  const displayAvatar = isEditing ? tempData.avatar : profileData.avatar
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-zinc-100 relative overflow-x-hidden flex items-center justify-center px-6">
+        <div className="w-full max-w-xl rounded-3xl border border-zinc-800 bg-zinc-950/70 p-8 animate-pulse">
+          <div className="h-8 w-40 bg-zinc-800 rounded mb-6" />
+          <div className="h-24 bg-zinc-800 rounded-2xl mb-4" />
+          <div className="h-24 bg-zinc-800 rounded-2xl mb-4" />
+          <div className="h-24 bg-zinc-800 rounded-2xl" />
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-black text-slate-100 relative overflow-x-hidden">
-      {/* Subtle organic background shapes */}
-      <div className="absolute top-1/4 -left-1/4 w-[800px] h-[800px] bg-gradient-to-br from-amber-500/5 to-transparent rounded-full blur-3xl -z-10" />
-      <div className="absolute bottom-1/3 -right-1/4 w-[600px] h-[600px] bg-gradient-to-tl from-blue-600/5 to-transparent rounded-full blur-3xl -z-10" />
-      
-      {/* Header - floating, minimal */}
-      <motion.header 
-        className="py-6 px-8 flex items-center justify-between sticky top-0 z-50"
-        initial={{ y: -50, opacity: 0 }}
+    <div className="min-h-screen bg-black text-zinc-100 relative overflow-x-hidden" style={{ fontFamily: "'Space Grotesk', 'Bebas Neue', sans-serif" }}>
+      <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(900px 500px at 15% 10%, rgba(245,197,66,0.11), transparent 60%), radial-gradient(700px 500px at 85% 85%, rgba(255,255,255,0.06), transparent 70%)' }} />
+      <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
+
+      <motion.header
+        className="sticky top-0 z-50 px-5 md:px-8 h-20 flex items-center justify-between"
+        style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(245,197,66,0.28)' }}
+        initial={{ y: -24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
       >
-        <div className="flex items-center gap-5">
-          <motion.button 
+        <div className="flex items-center gap-4">
+          <motion.button
             onClick={() => navigate('/dashboard')}
-            className="text-slate-400 hover:text-amber-400 transition-colors p-2.5 rounded-full hover:bg-slate-800/60"
-            whileHover={{ x: -3 }}
-            whileTap={{ scale: 0.95 }}
+            className="w-11 h-11 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(245,197,66,0.38)' }}
+            whileHover={{ x: -2 }}
+            whileTap={{ scale: 0.96 }}
           >
-            <ArrowLeft size={24} strokeWidth={1.8} />
+            <ArrowLeft size={20} className="text-amber-300" />
           </motion.button>
           <div>
-            <h1 className="text-2.5xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-200 to-slate-400">
-              Profile
-            </h1>
-            <p className="text-slate-500 text-sm mt-1.5 ml-1">Your personal fitness sanctuary</p>
+            <p className="text-[10px] tracking-[0.35em] uppercase text-zinc-500">Wayne Systems</p>
+            <h1 className="text-xl md:text-2xl font-bold tracking-[0.18em] uppercase text-amber-200">Profile Command</h1>
           </div>
         </div>
-        
-        {!isEditing && (
-          <motion.button 
-            onClick={handleEdit} 
-            className="group relative px-6 py-3 rounded-full overflow-hidden"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-500 to-amber-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            <div className="relative flex items-center gap-2.5 text-slate-300 group-hover:text-slate-900 transition-colors">
-              <Edit size={20} strokeWidth={2} />
-              <span className="font-medium">Edit Profile</span>
-            </div>
-          </motion.button>
-        )}
+
+        <div className="flex items-center gap-3">
+          {isEditing ? (
+            <>
+              <motion.button
+                onClick={handleSave}
+                disabled={saving}
+                className="px-4 py-2.5 rounded-xl text-black font-bold tracking-[0.12em] uppercase text-xs"
+                style={{ background: 'linear-gradient(120deg, #f5c542 0%, #eab308 100%)' }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {saving ? 'Saving' : 'Save'}
+              </motion.button>
+              <motion.button
+                onClick={handleCancel}
+                className="px-4 py-2.5 rounded-xl text-zinc-200 font-semibold tracking-[0.1em] uppercase text-xs"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)' }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Cancel
+              </motion.button>
+            </>
+          ) : (
+            <motion.button
+              onClick={handleEdit}
+              className="px-5 py-2.5 rounded-xl text-black font-bold tracking-[0.1em] uppercase text-xs flex items-center gap-2"
+              style={{ background: 'linear-gradient(120deg, #f5c542 0%, #d7a81b 100%)' }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              <Edit size={15} /> Edit
+            </motion.button>
+          )}
+        </div>
       </motion.header>
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        {/* Profile Header - fluid, organic layout */}
-        <motion.div 
-          className="relative rounded-3xl overflow-hidden mb-12"
+      <main className="max-w-7xl mx-auto px-5 md:px-8 py-8 md:py-10 relative z-10 space-y-8">
+        <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl p-6 md:p-8"
+          style={{ background: 'linear-gradient(150deg, rgba(255,255,255,0.06) 0%, rgba(17,17,17,0.93) 35%, rgba(4,4,4,0.98) 100%)', border: '1px solid rgba(245,197,66,0.22)' }}
         >
-          {/* Hero gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/8 to-blue-600/5" />
-          
-          <div className="relative p-8 md:p-12 lg:px-16 lg:py-14">
-            <div className="flex flex-col lg:flex-row items-center lg:items-start gap-10 lg:gap-16">
-              {/* Avatar with organic treatment */}
-              <div className="relative">
-                <div className="relative w-44 h-44">
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 to-blue-600/20 rounded-2xl blur-xl -z-10" />
-                  <div className="w-full h-full bg-slate-800/40 rounded-2xl flex items-center justify-center border border-slate-700/50">
-                    <User className="text-slate-400" size={68} strokeWidth={1.5} />
-                  </div>
+          <div className="grid lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-4">
+              <div className="rounded-2xl p-6 h-full" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                <div className="w-28 h-28 rounded-2xl mx-auto flex items-center justify-center" style={{ background: 'linear-gradient(145deg, rgba(245,197,66,0.24), rgba(245,197,66,0.07))', border: '1px solid rgba(245,197,66,0.45)' }}>
+                  {displayAvatar ? (
+                    <img src={displayAvatar} alt="Profile avatar" className="w-full h-full rounded-2xl object-cover" />
+                  ) : (
+                    <User size={44} className="text-amber-200" />
+                  )}
                 </div>
                 {isEditing && (
-                  <motion.button 
-                    className="absolute bottom-2 right-2 w-12 h-12 rounded-xl bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/40"
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
+                  <motion.button
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="mt-4 w-full py-2.5 rounded-xl text-sm font-semibold uppercase tracking-[0.08em] text-amber-200 flex items-center justify-center gap-2"
+                    style={{ border: '1px solid rgba(245,197,66,0.38)', background: 'rgba(245,197,66,0.09)' }}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
                   >
-                    <Camera size={24} strokeWidth={1.8} className="text-slate-900" />
+                    <Camera size={15} /> Avatar
                   </motion.button>
                 )}
-              </div>
-              
-              {/* Profile content with elegant typography */}
-              <div className="text-center lg:text-left max-w-2xl space-y-5">
-                <div>
-                  <h2 className="text-4xl md:text-5xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                    {profileData.name}
-                  </h2>
-                  <p className="text-xl text-slate-300 mt-2 max-w-xl mx-auto lg:mx-0">{profileData.email}</p>
-                </div>
-                
-                <div className="flex flex-wrap justify-center lg:justify-start gap-3">
-                  <span className="px-5 py-2 bg-amber-500/10 text-amber-300 font-medium rounded-full">
-                    🎯 {profileData.fitnessGoal}
-                  </span>
-                  <span className="px-5 py-2 bg-blue-500/10 text-blue-300 font-medium rounded-full">
-                    💪 {profileData.activityLevel}
-                  </span>
-                  <span className="px-5 py-2 bg-emerald-500/10 text-emerald-300 font-medium rounded-full">
-                    📅 Since {new Date(profileData.joinDate).getFullYear()}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-6 max-w-xl mx-auto lg:mx-0 mt-3">
-                  <div className="text-center p-4">
-                    <Weight className="text-amber-400 mx-auto mb-3" size={28} strokeWidth={1.8} />
-                    <p className="text-2xl font-light bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                      {profileData.currentWeight} kg
-                    </p>
-                    <p className="text-slate-400 text-sm mt-1.5">Current</p>
-                  </div>
-                  <div className="text-center p-4">
-                    <Target className="text-emerald-400 mx-auto mb-3" size={28} strokeWidth={1.8} />
-                    <p className="text-2xl font-light bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                      {profileData.goalWeight} kg
-                    </p>
-                    <p className="text-slate-400 text-sm mt-1.5">Goal</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* Profile details as elegant tags */}
-            <div className="mt-10 flex flex-wrap justify-center lg:justify-start gap-x-8 gap-y-4 pt-8 border-t border-slate-800/60">
-              <div className="flex items-center gap-3 text-slate-300">
-                <Phone size={20} className="text-amber-400 flex-shrink-0" strokeWidth={1.8} />
-                <span className="font-medium">{profileData.phone}</span>
-              </div>
-              <div className="flex items-center gap-3 text-slate-300">
-                <Calendar size={20} className="text-amber-400 flex-shrink-0" strokeWidth={1.8} />
-                <span className="font-medium">{profileData.age} years</span>
-              </div>
-              <div className="flex items-center gap-3 text-slate-300">
-                <Ruler size={20} className="text-amber-400 flex-shrink-0" strokeWidth={1.8} />
-                <span className="font-medium">{profileData.height} cm</span>
-              </div>
-            </div>
-            
-            {/* Edit controls floating elegantly */}
-            {isEditing && (
-              <div className="mt-10 flex flex-wrap justify-center lg:justify-end gap-4">
-                <motion.button 
-                  onClick={handleSave} 
-                  className="group relative px-8 py-4 rounded-full overflow-hidden bg-gradient-to-r from-emerald-600 to-emerald-700"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="relative flex items-center gap-2.5 text-white font-medium">
-                    <Save size={20} strokeWidth={2} />
-                    Save Changes
-                  </div>
-                </motion.button>
-                <motion.button 
-                  onClick={handleCancel} 
-                  className="group relative px-8 py-4 rounded-full overflow-hidden border border-slate-700/80"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  <div className="absolute inset-0 bg-slate-800/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="relative flex items-center gap-2.5 text-slate-300 group-hover:text-slate-100 font-medium">
-                    <X size={20} strokeWidth={2} />
-                    Cancel
-                  </div>
-                </motion.button>
-              </div>
-            )}
-          </div>
-        </motion.div>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => handleAvatarUpload(e.target.files)}
+                />
 
-        {/* Navigation - minimalist underline style */}
-        <div className="flex justify-center mb-16">
+                <div className="mt-6 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Current</p>
+                    <p className="text-lg font-bold text-amber-200">{profileData.currentWeight || '--'}</p>
+                  </div>
+                  <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Goal</p>
+                    <p className="text-lg font-bold text-emerald-300">{profileData.goalWeight || '--'}</p>
+                  </div>
+                  <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-zinc-500">Gap</p>
+                    <p className="text-lg font-bold text-zinc-100">{goalGap == null ? '--' : `${goalGap}`}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-8 space-y-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.35em] text-zinc-500">Identity</p>
+                <h2 className="text-3xl md:text-4xl font-extrabold uppercase tracking-[0.08em] text-zinc-100">{profileData.name || 'Unnamed User'}</h2>
+                <p className="text-zinc-400 mt-2">{profileData.email || 'No email set'}</p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-2 rounded-lg text-xs uppercase tracking-[0.13em]" style={{ background: 'rgba(245,197,66,0.12)', border: '1px solid rgba(245,197,66,0.36)', color: '#f5c542' }}>{profileData.fitnessGoal}</span>
+                <span className="px-3 py-2 rounded-lg text-xs uppercase tracking-[0.13em]" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.18)' }}>{profileData.activityLevel}</span>
+                <span className="px-3 py-2 rounded-lg text-xs uppercase tracking-[0.13em]" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.18)' }}>Since {new Date(profileData.joinDate).getFullYear()}</span>
+              </div>
+
+              <div className="grid sm:grid-cols-3 gap-3">
+                <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className="flex items-center gap-2 text-zinc-400 text-sm"><Phone size={14} /> {profileData.phone || 'Not set'}</div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className="flex items-center gap-2 text-zinc-400 text-sm"><Calendar size={14} /> {profileData.age || '--'} years</div>
+                </div>
+                <div className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className="flex items-center gap-2 text-zinc-400 text-sm"><Ruler size={14} /> {profileData.height || '--'} cm</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        <div className="flex flex-wrap gap-2">
           {[
             { id: 'profile', label: 'Personal', icon: User },
             { id: 'fitness', label: 'Fitness', icon: Activity },
-            { id: 'settings', label: 'Settings', icon: Settings }
-          ].map((tab, index) => {
+            { id: 'settings', label: 'Settings', icon: Settings },
+          ].map((tab) => {
             const Icon = tab.icon
+            const active = activeTab === tab.id
             return (
-              <motion.button 
+              <motion.button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`group relative mx-2 md:mx-6 px-2 py-3 flex flex-col items-center transition-all ${
-                  activeTab === tab.id 
-                    ? 'text-amber-400' 
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                className="px-4 py-2.5 rounded-xl text-xs uppercase tracking-[0.12em] font-bold flex items-center gap-2"
+                style={{
+                  background: active ? 'linear-gradient(130deg, rgba(245,197,66,0.23), rgba(245,197,66,0.1))' : 'rgba(255,255,255,0.04)',
+                  border: active ? '1px solid rgba(245,197,66,0.42)' : '1px solid rgba(255,255,255,0.13)',
+                  color: active ? '#f5c542' : '#d4d4d8',
+                }}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.98 }}
               >
-                <Icon size={24} strokeWidth={1.8} className="mb-2" />
-                <span className="text-lg font-medium">{tab.label}</span>
-                {activeTab === tab.id && (
-                  <motion.div 
-                    className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-amber-600 rounded-full"
-                    layoutId="tabIndicator"
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
-                )}
-                <div className={`absolute -bottom-1 left-0 right-0 h-0.5 bg-amber-500/30 rounded-full transition-all ${
-                  activeTab === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                }`} />
+                <Icon size={14} /> {tab.label}
               </motion.button>
             )
           })}
         </div>
 
-        {/* Tab Content - spacious, borderless layout */}
         <AnimatePresence mode="wait">
           {activeTab === 'profile' && (
-            <motion.div 
-              key="profile" 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="max-w-3xl mx-auto space-y-9"
-            >
-              <div className="space-y-2">
-                <h3 className="text-3xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                  Personal Details
-                </h3>
-                <p className="text-slate-500 max-w-2xl">Manage your core personal information and contact details.</p>
-              </div>
-              
-              <div className="space-y-8">
+            <motion.section key="profile" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="rounded-2xl p-6" style={{ background: 'rgba(10,10,10,0.88)', border: '1px solid rgba(255,255,255,0.14)' }}>
+              <h3 className="text-xl uppercase tracking-[0.12em] font-bold text-amber-200 mb-6">Personal Details</h3>
+              <div className="grid md:grid-cols-2 gap-4">
                 {[
                   { label: 'Full Name', icon: User, field: 'name', type: 'text' },
                   { label: 'Email Address', icon: Mail, field: 'email', type: 'email' },
                   { label: 'Phone Number', icon: Phone, field: 'phone', type: 'tel' },
                   { label: 'Age', icon: Calendar, field: 'age', type: 'number' },
-                ].map((input, index) => (
-                  <motion.div 
-                    key={input.field} 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group"
-                  >
-                    <label className="text-slate-400 text-sm font-medium mb-2.5 flex items-center gap-3">
-                      <input.icon size={20} className="text-amber-400 flex-shrink-0" strokeWidth={1.8} />
-                      {input.label}
-                    </label>
-                    <input 
-                      type={input.type} 
-                      value={isEditing ? tempData[input.field] : profileData[input.field]} 
-                      onChange={(e) => setTempData({
-                        ...tempData, 
-                        [input.field]: input.type === 'number' ? parseInt(e.target.value) : e.target.value
-                      })}
-                      disabled={!isEditing} 
-                      className={`w-full bg-transparent border-b border-slate-800/80 py-3 px-1 focus:border-amber-500/50 focus:outline-none transition-colors font-medium text-lg placeholder:text-slate-600 ${
-                        !isEditing && 'cursor-default'
-                      }`}
-                      placeholder={`Enter your ${input.label.toLowerCase()}`}
+                ].map((input) => (
+                  <div key={input.field} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                    <label className="text-xs uppercase tracking-[0.14em] text-zinc-400 flex items-center gap-2 mb-2"><input.icon size={14} className="text-amber-300" />{input.label}</label>
+                    <input
+                      type={input.type}
+                      value={isEditing ? tempData[input.field] : profileData[input.field]}
+                      onChange={(e) => setTempData({ ...tempData, [input.field]: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
                     />
-                  </motion.div>
+                  </div>
                 ))}
-                
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }} 
-                  animate={{ opacity: 1, y: 0 }} 
-                  transition={{ delay: 0.4 }}
-                  className="group"
-                >
-                  <label className="text-slate-400 text-sm font-medium mb-2.5 flex items-center gap-3">
-                    <User size={20} className="text-amber-400 flex-shrink-0" strokeWidth={1.8} />
-                    Gender
-                  </label>
-                  <select 
-                    value={isEditing ? tempData.gender : profileData.gender} 
-                    onChange={(e) => setTempData({...tempData, gender: e.target.value})}
-                    disabled={!isEditing} 
-                    className={`w-full bg-transparent border-b border-slate-800/80 py-3 px-1 focus:border-amber-500/50 focus:outline-none transition-colors font-medium text-lg appearance-none cursor-pointer ${
-                      !isEditing && 'cursor-default'
-                    }`}
+                <div className="rounded-xl p-4 md:col-span-2" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                  <label className="text-xs uppercase tracking-[0.14em] text-zinc-400 flex items-center gap-2 mb-2"><User size={14} className="text-amber-300" />Gender</label>
+                  <select
+                    value={isEditing ? tempData.gender : profileData.gender}
+                    onChange={(e) => setTempData({ ...tempData, gender: e.target.value })}
+                    disabled={!isEditing}
+                    className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
                   >
-                    <option className="bg-slate-900 text-slate-200 py-2">Male</option>
-                    <option className="bg-slate-900 text-slate-200 py-2">Female</option>
-                    <option className="bg-slate-900 text-slate-200 py-2">Other</option>
+                    <option className="bg-zinc-900">Male</option>
+                    <option className="bg-zinc-900">Female</option>
+                    <option className="bg-zinc-900">Other</option>
                   </select>
-                </motion.div>
+                </div>
               </div>
-            </motion.div>
+            </motion.section>
           )}
 
           {activeTab === 'fitness' && (
-            <motion.div 
-              key="fitness" 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="max-w-3xl mx-auto space-y-9"
-            >
-              <div className="space-y-2">
-                <h3 className="text-3xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                  Fitness Profile
-                </h3>
-                <p className="text-slate-500 max-w-2xl">Your physical metrics and training preferences that power your personalized program.</p>
-              </div>
-              
-              <div className="space-y-8">
+            <motion.section key="fitness" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="rounded-2xl p-6 space-y-6" style={{ background: 'rgba(10,10,10,0.88)', border: '1px solid rgba(255,255,255,0.14)' }}>
+              <h3 className="text-xl uppercase tracking-[0.12em] font-bold text-amber-200">Fitness Metrics</h3>
+              <div className="grid md:grid-cols-2 gap-4">
                 {[
                   { label: 'Height (cm)', icon: Ruler, field: 'height', type: 'number' },
                   { label: 'Current Weight (kg)', icon: Weight, field: 'currentWeight', type: 'number' },
                   { label: 'Goal Weight (kg)', icon: Target, field: 'goalWeight', type: 'number' },
-                  { 
-                    label: 'Activity Level', 
-                    icon: Activity, 
-                    field: 'activityLevel', 
-                    type: 'select', 
-                    options: ['Sedentary', 'Light', 'Moderate', 'Active', 'Very Active'] 
-                  },
-                ].map((input, index) => (
-                  <motion.div 
-                    key={input.field} 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="group"
-                  >
-                    <label className="text-slate-400 text-sm font-medium mb-2.5 flex items-center gap-3">
-                      <input.icon size={20} className="text-amber-400 flex-shrink-0" strokeWidth={1.8} />
-                      {input.label}
-                    </label>
+                  { label: 'Activity Level', icon: Activity, field: 'activityLevel', type: 'select', options: ['Sedentary', 'Light', 'Moderate', 'Active', 'Very Active'] },
+                ].map((input) => (
+                  <div key={input.field} className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                    <label className="text-xs uppercase tracking-[0.14em] text-zinc-400 flex items-center gap-2 mb-2"><input.icon size={14} className="text-amber-300" />{input.label}</label>
                     {input.type === 'select' ? (
-                      <select 
-                        value={isEditing ? tempData[input.field] : profileData[input.field]} 
-                        onChange={(e) => setTempData({...tempData, [input.field]: e.target.value})}
-                        disabled={!isEditing} 
-                        className={`w-full bg-transparent border-b border-slate-800/80 py-3 px-1 focus:border-amber-500/50 focus:outline-none transition-colors font-medium text-lg appearance-none cursor-pointer ${
-                          !isEditing && 'cursor-default'
-                        }`}
+                      <select
+                        value={isEditing ? tempData[input.field] : profileData[input.field]}
+                        onChange={(e) => setTempData({ ...tempData, [input.field]: e.target.value })}
+                        disabled={!isEditing}
+                        className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
                       >
-                        {input.options.map(opt => (
-                          <option key={opt} className="bg-slate-900 text-slate-200 py-2">{opt}</option>
-                        ))}
+                        {input.options.map((opt) => <option key={opt} className="bg-zinc-900">{opt}</option>)}
                       </select>
                     ) : (
-                      <input 
-                        type={input.type} 
-                        value={isEditing ? tempData[input.field] : profileData[input.field]} 
-                        onChange={(e) => setTempData({
-                          ...tempData, 
-                          [input.field]: input.type === 'number' ? parseFloat(e.target.value) : e.target.value
-                        })}
-                        disabled={!isEditing} 
-                        className={`w-full bg-transparent border-b border-slate-800/80 py-3 px-1 focus:border-amber-500/50 focus:outline-none transition-colors font-medium text-lg placeholder:text-slate-600 ${
-                          !isEditing && 'cursor-default'
-                        }`}
-                        placeholder={`Enter ${input.label.toLowerCase()}`}
+                      <input
+                        type={input.type}
+                        value={isEditing ? tempData[input.field] : profileData[input.field]}
+                        onChange={(e) => setTempData({ ...tempData, [input.field]: e.target.value })}
+                        disabled={!isEditing}
+                        className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
                       />
                     )}
-                  </motion.div>
+                  </div>
                 ))}
               </div>
-              
-              {/* Progress visualization without boxes */}
-              <div className="mt-12 pt-10 border-t border-slate-800/60">
-                <div className="flex items-center gap-4 mb-8">
-                  <div className="w-12 h-12 bg-gradient-to-br from-amber-500/15 to-transparent rounded-2xl flex items-center justify-center">
-                    <Target className="text-amber-400" size={28} strokeWidth={1.8} />
-                  </div>
-                  <h4 className="text-2xl font-light text-slate-100">Your Journey So Far</h4>
-                </div>
-                
-                <div className="space-y-6 max-w-2xl">
-                  <p className="text-slate-300 text-lg">
-                    You've lost <span className="font-medium text-amber-300">{(85 - profileData.currentWeight).toFixed(1)} kg</span> 
-                    on your path to {profileData.goalWeight} kg.
-                  </p>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm text-slate-500 mb-3">
-                        <span>85.0 kg</span>
-                        <span>{profileData.goalWeight} kg</span>
-                      </div>
-                      <div className="h-2 bg-slate-800/60 rounded-full overflow-hidden relative">
-                        <div 
-                          className="h-full bg-gradient-to-r from-amber-500 to-amber-600 rounded-full transition-all duration-700"
-                          style={{ 
-                            width: `${Math.min(98, ((85 - profileData.currentWeight) / (85 - profileData.goalWeight)) * 100)}%` 
-                          }}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-between text-xl font-light">
-                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-amber-400">
-                        {profileData.currentWeight} kg
-                      </span>
-                      <span className="text-emerald-400">
-                        {Math.round(((85 - profileData.currentWeight) / (85 - profileData.goalWeight)) * 100)}% there
-                      </span>
-                    </div>
-                  </div>
-                </div>
+
+              <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                <label className="text-xs uppercase tracking-[0.14em] text-zinc-400 flex items-center gap-2 mb-2"><Target size={14} className="text-amber-300" />Fitness Goal</label>
+                <select
+                  value={isEditing ? tempData.fitnessGoal : profileData.fitnessGoal}
+                  onChange={(e) => setTempData({ ...tempData, fitnessGoal: e.target.value })}
+                  disabled={!isEditing}
+                  className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
+                >
+                  {['General Fitness', 'Weight Loss', 'Weight Gain', 'Muscle Building', 'Athletic Performance'].map((goal) => (
+                    <option key={goal} className="bg-zinc-900">{goal}</option>
+                  ))}
+                </select>
               </div>
-            </motion.div>
+
+              <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(145deg, rgba(245,197,66,0.11), rgba(255,255,255,0.03))', border: '1px solid rgba(245,197,66,0.25)' }}>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-400 mb-3">Journey Progress</p>
+                {hasWeightTargets ? (
+                  <>
+                    <div className="h-3 bg-black/60 rounded-full overflow-hidden border border-white/10">
+                      <motion.div initial={{ width: 0 }} animate={{ width: `${journeyPct}%` }} transition={{ duration: 0.7 }} className="h-full rounded-full" style={{ background: 'linear-gradient(90deg, #f5c542 0%, #f59e0b 100%)' }} />
+                    </div>
+                    <div className="mt-3 text-sm text-zinc-300 flex justify-between">
+                      <span>Current: {currentWeightNum} kg</span>
+                      <span>Goal: {goalWeightNum} kg</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-zinc-500">Add current and goal weight to view your progress bar.</p>
+                )}
+              </div>
+            </motion.section>
           )}
 
           {activeTab === 'settings' && (
-            <motion.div 
-              key="settings" 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="max-w-4xl mx-auto space-y-12"
-            >
-              {/* Notifications - elegant list style */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center">
-                    <Bell className="text-blue-400" size={26} strokeWidth={1.8} />
-                  </div>
-                  <h3 className="text-3xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                    Notifications
-                  </h3>
-                </div>
-                
-                <div className="space-y-5 max-w-2xl">
+            <motion.section key="settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="rounded-2xl p-6 space-y-6" style={{ background: 'rgba(10,10,10,0.88)', border: '1px solid rgba(255,255,255,0.14)' }}>
+              <h3 className="text-xl uppercase tracking-[0.12em] font-bold text-amber-200">Control Room</h3>
+
+              <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                <p className="text-sm uppercase tracking-[0.14em] text-zinc-400 mb-4">Notifications</p>
+                <div className="space-y-3">
                   {[
-                    { 
-                      title: 'Workout Reminders', 
-                      desc: 'Get notified 30 minutes before scheduled workouts', 
-                      enabled: true 
-                    },
-                    { 
-                      title: 'Progress Reports', 
-                      desc: 'Weekly summaries of your fitness progress', 
-                      enabled: true 
-                    },
-                    { 
-                      title: 'Nutrition Tips', 
-                      desc: 'Daily healthy eating suggestions', 
-                      enabled: false 
-                    }
-                  ].map((setting, index) => (
-                    <motion.div 
-                      key={index} 
-                      className="group py-4 border-b border-slate-800/50 last:border-b-0"
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                    >
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium text-lg text-slate-100">{setting.title}</p>
-                          <p className="text-slate-500 text-sm mt-1.5 max-w-md">{setting.desc}</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={setting.enabled} 
-                            className="sr-only peer"
-                          />
-                          <div className={`w-12 h-7 bg-slate-800 rounded-full peer peer-focus:ring-2 peer-focus:ring-amber-500/30 transition-colors ${
-                            setting.enabled ? 'peer-checked:bg-amber-500' : ''
-                          }`}>
-                            <div className={`w-5 h-5 bg-slate-400 rounded-full absolute top-1 transition-transform ${
-                              setting.enabled ? 'translate-x-5 bg-white' : 'translate-x-1'
-                            }`} />
-                          </div>
-                        </label>
+                    { key: 'workoutReminders', title: 'Workout Reminders', desc: 'Alerts before scheduled workouts' },
+                    { key: 'progressReports', title: 'Progress Reports', desc: 'Weekly progress summary' },
+                    { key: 'nutritionTips', title: 'Nutrition Tips', desc: 'Daily nutrition guidance' },
+                  ].map((setting) => (
+                    <div key={setting.key} className="flex items-center justify-between rounded-lg px-3 py-3" style={{ background: 'rgba(255,255,255,0.02)' }}>
+                      <div>
+                        <p className="text-zinc-200 font-medium">{setting.title}</p>
+                        <p className="text-zinc-500 text-xs">{setting.desc}</p>
                       </div>
-                    </motion.div>
+                      <button onClick={() => toggleNotificationSetting(setting.key)} className="w-12 h-7 rounded-full p-1 transition-all" style={{ background: notificationSettings[setting.key] ? 'rgba(245,197,66,0.9)' : 'rgba(255,255,255,0.2)' }}>
+                        <span className={`block w-5 h-5 rounded-full bg-black transition-transform ${notificationSettings[setting.key] ? 'translate-x-5' : 'translate-x-0'}`} />
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
 
-              {/* Privacy - elegant list style */}
-              <div className="space-y-2 pt-8 border-t border-slate-800/40">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center">
-                    <Lock className="text-purple-400" size={26} strokeWidth={1.8} />
-                  </div>
-                  <h3 className="text-3xl font-light tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-100 to-slate-300">
-                    Privacy & Security
-                  </h3>
-                </div>
-                
-                <div className="space-y-3 max-w-2xl">
-                  {[
-                    { action: 'Change Password', desc: 'Update your account password', color: 'text-slate-200' },
-                    { action: 'Two-Factor Authentication', desc: 'Add an extra layer of security', color: 'text-slate-200' },
-                    { action: 'Export Your Data', desc: 'Download all your personal information', color: 'text-slate-200' },
-                    { action: 'Delete Account', desc: 'Permanently remove your account', color: 'text-red-400' }
-                  ].map((action, index) => (
-                    <motion.button 
-                      key={action.action} 
-                      className={`w-full text-left py-4 group border-b border-slate-800/50 last:border-b-0 ${
-                        action.color === 'text-red-400' ? 'hover:bg-red-500/5' : 'hover:bg-slate-800/40'
-                      } transition-colors`}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      whileHover={{ x: 5 }}
-                      whileTap={{ scale: 0.99 }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className={`font-medium text-lg ${action.color}`}>{action.action}</p>
-                          <p className="text-slate-500 text-sm mt-1 max-w-md">{action.desc}</p>
-                        </div>
-                        <ChevronRight size={22} className="text-slate-600 group-hover:text-amber-400 transition-colors" strokeWidth={1.8} />
+              <div className="rounded-xl p-4" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.09)' }}>
+                <p className="text-sm uppercase tracking-[0.14em] text-zinc-400 mb-2">Security Actions</p>
+                <div className="space-y-2">
+                  <button onClick={() => setSecurityModal('password')} className="w-full text-left rounded-lg px-3 py-3 hover:bg-white/5 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-zinc-200 font-medium">Change Password</p>
+                        <p className="text-zinc-500 text-xs">Update your account password</p>
                       </div>
-                    </motion.button>
-                  ))}
+                      <ChevronRight size={16} className="text-zinc-500" />
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (twoFactorEnabled) {
+                        setTwoFactorCode('')
+                        setSecurityModal('2fa-disable')
+                      } else {
+                        handleEnable2FAStart()
+                      }
+                    }}
+                    className="w-full text-left rounded-lg px-3 py-3 hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-zinc-200 font-medium">Two-Factor Authentication</p>
+                        <p className="text-zinc-500 text-xs">{twoFactorEnabled ? 'Enabled - click to disable' : 'Disabled - click to enable'}</p>
+                      </div>
+                      <ChevronRight size={16} className="text-zinc-500" />
+                    </div>
+                  </button>
+
+                  <button onClick={handleExportData} className="w-full text-left rounded-lg px-3 py-3 hover:bg-white/5 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-zinc-200 font-medium">Export Your Data</p>
+                        <p className="text-zinc-500 text-xs">Download your meals, workouts, progress and profile</p>
+                      </div>
+                      <ChevronRight size={16} className="text-zinc-500" />
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              {/* Logout - elegant standalone button */}
               <motion.button
-                className="group relative mt-6 max-w-md mx-auto w-full py-5 rounded-xl overflow-hidden border border-red-500/20"
+                onClick={handleSignOut}
+                className="w-full md:w-auto px-6 py-3 rounded-xl font-bold uppercase tracking-[0.12em] text-red-300"
+                style={{ background: 'rgba(127,29,29,0.24)', border: '1px solid rgba(248,113,113,0.5)' }}
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-red-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                <div className="relative flex items-center justify-center gap-3 text-red-300 font-medium text-lg">
-                  <LogOut size={22} strokeWidth={1.8} />
-                  <span>Sign Out</span>
-                </div>
+                <span className="inline-flex items-center gap-2"><LogOut size={15} /> Sign Out</span>
               </motion.button>
+            </motion.section>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {securityModal && (
+            <motion.div
+              className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !securityLoading && setSecurityModal(null)}
+            >
+              <motion.div
+                onClick={(e) => e.stopPropagation()}
+                initial={{ y: 10, opacity: 0, scale: 0.98 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 8, opacity: 0, scale: 0.98 }}
+                className="w-full max-w-lg rounded-2xl p-5 md:p-6"
+                style={{ background: 'linear-gradient(170deg, rgba(16,16,16,0.98), rgba(8,8,8,0.98))', border: '1px solid rgba(245,197,66,0.3)' }}
+              >
+                {securityModal === 'password' && (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-bold uppercase tracking-[0.1em] text-amber-200">Change Password</h4>
+                    <input
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                      placeholder="Current password"
+                      className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
+                    />
+                    <input
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      placeholder="New password"
+                      className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
+                    />
+                    <input
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      placeholder="Confirm new password"
+                      className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
+                    />
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                        onClick={() => setSecurityModal(null)}
+                        className="px-4 py-2 rounded-lg text-zinc-300 border border-white/20"
+                        disabled={securityLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleChangePassword}
+                        className="px-4 py-2 rounded-lg text-black font-semibold"
+                        style={{ background: 'linear-gradient(120deg, #f5c542 0%, #eab308 100%)' }}
+                        disabled={securityLoading}
+                      >
+                        {securityLoading ? 'Saving...' : 'Update Password'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {securityModal === '2fa-enable' && (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-bold uppercase tracking-[0.1em] text-amber-200">Enable 2FA</h4>
+                    <p className="text-sm text-zinc-400">Scan this QR code in Google Authenticator/Authy, then enter the 6-digit code.</p>
+                    {twoFactorSetup.qrCode ? (
+                      <div className="rounded-xl p-3 mx-auto w-fit" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        <img src={twoFactorSetup.qrCode} alt="2FA QR code" className="w-44 h-44" />
+                      </div>
+                    ) : null}
+                    <input
+                      type="text"
+                      value={twoFactorCode}
+                      onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="Enter 6-digit code"
+                      className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
+                    />
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                        onClick={() => setSecurityModal(null)}
+                        className="px-4 py-2 rounded-lg text-zinc-300 border border-white/20"
+                        disabled={securityLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleEnable2FAConfirm}
+                        className="px-4 py-2 rounded-lg text-black font-semibold"
+                        style={{ background: 'linear-gradient(120deg, #f5c542 0%, #eab308 100%)' }}
+                        disabled={securityLoading}
+                      >
+                        {securityLoading ? 'Verifying...' : 'Enable 2FA'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {securityModal === '2fa-disable' && (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-bold uppercase tracking-[0.1em] text-amber-200">Disable 2FA</h4>
+                    <p className="text-sm text-zinc-400">Enter your current authenticator code to disable two-factor authentication.</p>
+                    <input
+                      type="text"
+                      value={twoFactorCode}
+                      onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="Enter 6-digit code"
+                      className="w-full rounded-lg px-3 py-2.5 bg-black/50 border border-white/10 focus:outline-none focus:border-amber-400/50 text-zinc-100"
+                    />
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                        onClick={() => setSecurityModal(null)}
+                        className="px-4 py-2 rounded-lg text-zinc-300 border border-white/20"
+                        disabled={securityLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleDisable2FAConfirm}
+                        className="px-4 py-2 rounded-lg text-red-100 font-semibold"
+                        style={{ background: 'rgba(185,28,28,0.8)' }}
+                        disabled={securityLoading}
+                      >
+                        {securityLoading ? 'Disabling...' : 'Disable 2FA'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-
-      {/* Floating decorative element */}
-      <div className="hidden lg:block fixed bottom-16 right-16 w-48 h-48 bg-gradient-to-br from-amber-500/10 to-transparent rounded-full blur-2xl -z-10 animate-float" />
-      
-      <style jsx global>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0) rotate(0deg); }
-          50% { transform: translateY(-20px) rotate(2deg); }
-        }
-        .animate-float {
-          animation: float 12s ease-in-out infinite;
-        }
-      `}</style>
+      </main>
     </div>
   )
 }

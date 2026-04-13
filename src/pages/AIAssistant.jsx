@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -6,15 +6,11 @@ import {
   User, Bot, Loader2, X, ChevronRight, Sparkles,
   RotateCcw, Activity, Flame, Target, Brain
 } from 'lucide-react'
+import { sendAIMessage } from '../services/api'
+import { useApi } from '../hooks/useApi'
 
-// ─── FIXED CONFIG ───────────────────────────────────────────────────────────
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
-
-if (!GROQ_API_KEY) {
-  console.error('❌ Missing VITE_GROQ_API_KEY in .env file')
-}
-
-const GROQ_URL = `https://api.groq.com/openai/v1/chat/completions`
+// ─── AI CONFIG ───────────────────────────────────────────────────────────────
+// Primary path: backend /api/ai/chat proxy via sendAIMessage()
 
 // ─── LOAD ALL USER DATA FROM LOCALSTORAGE ─────────────────────────────────────
 function getUserContext() {
@@ -112,56 +108,71 @@ const QUICK_ACTIONS = [
   {
     icon: TrendingUp,
     label: 'Analyze my progress',
-    color: 'from-blue-500 to-cyan-500',
+    color: '#38bdf8',
     prompt: 'Analyze my workout history and progress. What are my strengths and weaknesses? What should I focus on?'
   },
   {
     icon: Dumbbell,
     label: 'Build me a workout',
-    color: 'from-amber-500 to-orange-500',
+    color: '#f59e0b',
     prompt: "Create a personalized workout plan for today based on my goals, experience level, and recent training history."
   },
   {
     icon: Apple,
     label: 'Plan my nutrition',
-    color: 'from-green-500 to-emerald-500',
+    color: '#22c55e',
     prompt: "Based on my calorie goal and today's food log, tell me exactly what I should eat for the rest of today to hit my macro targets."
   },
   {
     icon: Target,
     label: 'Am I on track?',
-    color: 'from-purple-500 to-violet-500',
+    color: '#8b5cf6',
     prompt: "Look at all my data — workouts, nutrition, progress — and give me an honest assessment. Am I on track to reach my goals?"
   },
   {
     icon: Flame,
     label: 'How to break plateau',
-    color: 'from-red-500 to-rose-500',
+    color: '#ef4444',
     prompt: "I feel like I'm stuck. Based on my workout history and current routine, what specific changes should I make to break through my plateau?"
   },
   {
     icon: Brain,
     label: 'Recovery advice',
-    color: 'from-indigo-500 to-blue-500',
+    color: '#a855f7',
     prompt: "Based on my recent training volume and frequency, what does my recovery look like? Am I overtraining or undertraining? What should I do?"
   }
 ]
 
+function localCoachReply(userText, ctx) {
+  const t = String(userText || '').toLowerCase()
+  const proteinTarget = Math.max(120, Math.round((Number(ctx.profile?.weight) || 62) * 2.2))
+
+  if (/workout|plan|train|exercise/.test(t)) {
+    return `Local coach mode (no API key):\n\n- **Today's focus:** Push + Pull + Legs split\n- **Main lifts:** Squat 4x6-8, Bench 4x6-8, Row 4x8-10\n- **Accessory:** Shoulder press 3x10, lateral raise 3x15, curls 3x12\n- **Target session duration:** 60-75 min\n\nYou have **${ctx.totalWorkouts} workouts** logged. Progression tip: add 2.5kg to your top set when reps hit upper range.`
+  }
+
+  if (/diet|nutrition|calorie|protein|eat|meal|macro/.test(t)) {
+    return `Local coach mode (no API key):\n\n- **Calories today:** ${ctx.todayCalories} kcal\n- **Protein today:** ${ctx.todayProtein} g\n- **Protein target:** ~${proteinTarget} g\n- Keep meals at 30-45g protein each for muscle gain\n\nAction: add one high-protein meal now (eggs + greek yogurt or chicken + rice).`
+  }
+
+  if (/progress|track|goal|on track|plateau/.test(t)) {
+    return `Local coach mode (no API key):\n\n- Workouts completed: **${ctx.totalWorkouts}**\n- Total training volume: **${ctx.totalVolume.toLocaleString()} kg**\n- Today's intake: **${ctx.todayCalories} kcal / ${ctx.todayProtein}g protein**\n\nFor your muscle-gain goal, stay in a small surplus and keep progressive overload on 3 core lifts weekly.`
+  }
+
+  return `Local coach mode (no API key):\n\nI can still coach you with your app data:\n- Workouts: **${ctx.totalWorkouts}**\n- Volume: **${ctx.totalVolume.toLocaleString()} kg**\n- Today: **${ctx.todayCalories} kcal**, **${ctx.todayProtein}g protein**\n\nAsk me: "build me today's workout" or "fix my nutrition today".`
+}
+
 // ─── TYPING INDICATOR ─────────────────────────────────────────────────────────
 const TypingIndicator = () => (
   <div className="flex items-end gap-3 mb-6">
-    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center flex-shrink-0">
+    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #ff1a1a, #cc0000)', boxShadow: '0 0 15px rgba(255,26,26,0.4)' }}>
       <Bot size={16} className="text-white" />
     </div>
-    <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-bl-sm px-5 py-4">
+    <div className="px-5 py-4 rounded-2xl rounded-bl-sm" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="flex gap-1.5 items-center h-5">
         {[0, 1, 2].map(i => (
-          <motion.div
-            key={i}
-            className="w-2 h-2 bg-amber-400 rounded-full"
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
-          />
+          <motion.div key={i} className="w-2 h-2 rounded-full" style={{ background: '#ff1a1a' }}
+            animate={{ y: [0, -6, 0] }} transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }} />
         ))}
       </div>
     </div>
@@ -179,7 +190,7 @@ const MessageBubble = ({ message }) => {
       if (line.startsWith('- ') || line.startsWith('• ')) {
         return (
           <div key={i} className="flex gap-2 my-0.5">
-            <span className="text-amber-400 mt-1 flex-shrink-0">▸</span>
+            <span className="mt-1 flex-shrink-0" style={{ color: '#ff4444' }}>▸</span>
             <span dangerouslySetInnerHTML={{ __html: line.slice(2) }} />
           </div>
         )
@@ -188,7 +199,7 @@ const MessageBubble = ({ message }) => {
         const num = line.match(/^(\d+)\./)[1]
         return (
           <div key={i} className="flex gap-2 my-0.5">
-            <span className="text-amber-400 font-bold flex-shrink-0 w-4">{num}.</span>
+            <span className="font-black flex-shrink-0 w-4" style={{ color: '#ff4444' }}>{num}.</span>
             <span dangerouslySetInnerHTML={{ __html: line.replace(/^\d+\.\s/, '') }} />
           </div>
         )
@@ -199,31 +210,17 @@ const MessageBubble = ({ message }) => {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`flex items-end gap-3 mb-6 ${isUser ? 'flex-row-reverse' : ''}`}
-    >
-      <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
-        isUser
-          ? 'bg-gradient-to-br from-slate-600 to-slate-700'
-          : 'bg-gradient-to-br from-amber-500 to-orange-600'
-      }`}>
-        {isUser ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+      className={`flex items-end gap-3 mb-6 ${isUser ? 'flex-row-reverse' : ''}`}>
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={isUser
+        ? { background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }
+        : { background: 'linear-gradient(135deg, #ff1a1a, #cc0000)', boxShadow: '0 0 12px rgba(255,26,26,0.35)' }}>
+        {isUser ? <User size={16} className="text-zinc-400" /> : <Bot size={16} className="text-white" />}
       </div>
-
-      <div className={`max-w-[80%] px-5 py-4 rounded-2xl text-sm leading-relaxed ${
-        isUser
-          ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-br-sm'
-          : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-bl-sm'
-      }`}>
-        {isUser ? (
-          <p>{message.content}</p>
-        ) : (
-          <div className="space-y-0.5">
-            {renderContent(message.content)}
-          </div>
-        )}
+      <div className="max-w-[80%] px-5 py-4 rounded-2xl text-sm leading-relaxed" style={isUser
+        ? { background: 'linear-gradient(135deg, #ff1a1a, #cc0000)', color: '#ffffff', borderRadius: '16px 16px 4px 16px', boxShadow: '0 0 20px rgba(255,26,26,0.2)' }
+        : { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#e4e4e7', borderRadius: '4px 16px 16px 16px' }}>
+        {isUser ? <p>{message.content}</p> : <div className="space-y-0.5">{renderContent(message.content)}</div>}
       </div>
     </motion.div>
   )
@@ -236,16 +233,78 @@ export default function AIAssistant() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(true)
-  const [userCtx] = useState(() => getUserContext())
+  const localCtx = useMemo(() => getUserContext(), [])
+  const { data: apiUser } = useApi('/auth/me')
+  const { data: apiWorkouts } = useApi('/workouts')
+  const { data: apiMeals } = useApi('/meals')
+  const { data: apiWaterToday } = useApi('/water/today')
+  const { data: apiBodyAnalyses } = useApi('/body-analysis')
   const [lastRequestTime, setLastRequestTime] = useState(0)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
+
+  const userCtx = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0]
+
+    const profileData = apiUser?.profileData || {}
+    const mergedProfile = {
+      ...(localCtx.profile || {}),
+      name: apiUser?.name || localCtx.profile?.name,
+      age: profileData.age ?? localCtx.profile?.age,
+      gender: profileData.gender ?? localCtx.profile?.gender,
+      weight: profileData.weight ?? localCtx.profile?.weight,
+      height: profileData.height ?? localCtx.profile?.height,
+      fitnessGoal: profileData.fitnessGoal ?? localCtx.profile?.fitnessGoal,
+      activityLevel: profileData.activityLevel ?? localCtx.profile?.activityLevel,
+      experience: localCtx.profile?.experience,
+    }
+
+    const workouts = Array.isArray(apiWorkouts) && apiWorkouts.length > 0
+      ? apiWorkouts
+      : (localCtx.workoutHistory || [])
+
+    const todayMeals = Array.isArray(apiMeals) && apiMeals.length > 0
+      ? apiMeals.filter((m) => String(m?.date || '').slice(0, 10) === today)
+      : (localCtx.todayLog || [])
+
+    const totalWorkouts = workouts.length
+    const totalVolume = workouts.reduce((s, w) => s + (Number(w?.volume) || 0), 0)
+    const avgCalories = workouts.length
+      ? Math.round(workouts.reduce((s, w) => s + (Number(w?.calories) || 0), 0) / workouts.length)
+      : 0
+
+    const todayCalories = todayMeals.reduce((s, m) => s + (Number(m?.calories) || 0), 0)
+    const todayProtein = todayMeals.reduce((s, m) => s + (Number(m?.protein) || 0), 0)
+
+    return {
+      profile: mergedProfile,
+      workoutHistory: workouts.slice(0, 10),
+      currentWorkout: localCtx.currentWorkout || [],
+      todayLog: todayMeals,
+      calorieData: localCtx.calorieData,
+      waterIntake: apiWaterToday?.amount ?? localCtx.waterIntake,
+      totalWorkouts,
+      totalVolume,
+      avgCalories,
+      todayCalories,
+      todayProtein,
+      progressPhotos: localCtx.progressPhotos || 0,
+      savedAnalyses: Array.isArray(apiBodyAnalyses) && apiBodyAnalyses.length > 0
+        ? apiBodyAnalyses
+        : (localCtx.savedAnalyses || []),
+      raw: {
+        dailyMeals: (localCtx.raw?.dailyMeals || []).slice(0, 5),
+      },
+    }
+  }, [localCtx, apiUser, apiWorkouts, apiMeals, apiWaterToday, apiBodyAnalyses])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   useEffect(() => {
+    if (messages.length > 0) return
+
     const name = userCtx.profile?.name
     const hasData = userCtx.totalWorkouts > 0 || userCtx.todayCalories > 0
 
@@ -254,22 +313,12 @@ export default function AIAssistant() {
       : `Hey! I'm your AI personal trainer. ${hasData ? `I can see your fitness data — ask me anything about your progress, workouts, or nutrition.` : `Set up your profile to get personalized advice, or just ask me anything about fitness!`}`
 
     setMessages([{ id: 1, role: 'assistant', content: welcome }])
-  }, [userCtx])
+  }, [userCtx, messages.length])
 
   const sendMessage = useCallback(async (userText) => {
     if (!userText.trim() || isLoading) return
-    
-    if (!GROQ_API_KEY) {
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        role: 'assistant',
-        content: '❌ **Grok API Key Missing**\n\nPlease add your Grok API key to the `.env` file:\n```\nVITE_GROQ_API_KEY=your_key_here\n```\n\nThen restart the dev server.'
-      }])
-      return
-    }
 
     const userMsg = { id: Date.now(), role: 'user', content: userText }
-    const assistantId = Date.now() + 1
 
     setMessages(prev => [...prev, userMsg])
     setInput('')
@@ -279,71 +328,38 @@ export default function AIAssistant() {
     const systemPrompt = buildSystemPrompt(userCtx)
     const history = [...messages, userMsg]
 
-    // Build Grok API messages format
-    const grokMessages = [
-      { role: 'user', content: systemPrompt }
-    ]
-    
-    history.forEach(m => {
-      grokMessages.push({
+    const aiMessages = [
+      { role: 'user', content: systemPrompt },
+      ...history.map((m) => ({
         role: m.role === 'user' ? 'user' : 'assistant',
-        content: m.content
-      })
-    })
-
-    setMessages(prev => [...prev, {
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      streaming: true
-    }])
+        content: m.content,
+      })),
+    ]
 
     try {
-      const response = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: grokMessages,
-          temperature: 0.7,
-          max_tokens: 2048,
-        })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        // --- 429 QUOTA ERROR HANDLING ---
-        if (response.status === 429) {
-          throw new Error("QUOTA_LIMIT: You reached your API limit. Please wait about 60 seconds before trying again.")
-        }
-        throw new Error(data.error?.message || `API error: ${response.status}`)
-      }
+      const data = await sendAIMessage(aiMessages)
 
       const text = data?.choices?.[0]?.message?.content || 'Sorry, I could not generate a response.'
 
-      setMessages(prev => prev.map(m =>
-        m.id === assistantId
-          ? { ...m, content: text, streaming: false }
-          : m
-      ))
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: text,
+        streaming: false,
+      }])
 
     } catch (err) {
-      console.error('🚨 Grok API error:', err)
-      
-      // Use the specific error message if it's the quota limit
-      const errorContent = err.message.includes("QUOTA_LIMIT") 
-        ? err.message 
-        : `I'm having trouble connecting right now. Based on your data:\n\n- You've completed **${userCtx.totalWorkouts} workouts**\n- Total volume: **${userCtx.totalVolume.toLocaleString()}kg**\n- Today's calories: **${userCtx.todayCalories}**\n\nPlease try again in a moment.`
+      console.error('AI request error:', err)
 
-      setMessages(prev => prev.map(m =>
-        m.id === assistantId
-          ? { ...m, content: errorContent, streaming: false }
-          : m
-      ))
+      const fallback = localCoachReply(userText, userCtx)
+      const errorContent = `Live AI is unavailable right now, so I switched to local coach mode.\n\n${fallback}`
+
+      setMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: errorContent,
+        streaming: false,
+      }])
     } finally {
       setIsLoading(false)
     }
@@ -387,97 +403,88 @@ export default function AIAssistant() {
   }
 
   const stats = [
-    { label: 'Workouts', value: userCtx.totalWorkouts, icon: Dumbbell, color: 'text-amber-400' },
-    { label: 'Volume', value: `${Math.round(userCtx.totalVolume / 1000)}t`, icon: TrendingUp, color: 'text-blue-400' },
-    { label: 'Today kcal', value: userCtx.todayCalories, icon: Flame, color: 'text-orange-400' },
-    { label: 'Protein', value: `${userCtx.todayProtein}g`, icon: Target, color: 'text-green-400' },
+    { label: 'Workouts', value: userCtx.totalWorkouts, icon: Dumbbell, color: '#f59e0b' },
+    { label: 'Volume', value: `${Math.round(userCtx.totalVolume / 1000)}t`, icon: TrendingUp, color: '#38bdf8' },
+    { label: 'Today kcal', value: userCtx.todayCalories, icon: Flame, color: '#f97316' },
+    { label: 'Protein', value: `${userCtx.todayProtein}g`, icon: Target, color: '#22c55e' },
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-950 to-black text-slate-100 flex flex-col">
+    <div className="min-h-screen text-white flex flex-col selection:bg-red-500" style={{ background: '#020202', fontFamily: "'Space Grotesk', sans-serif" }}>
+      {/* Grid overlay */}
+      <div className="fixed inset-0 pointer-events-none z-0" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+      {/* Glow orb */}
+      <div className="fixed pointer-events-none z-0" style={{ width: '600px', height: '500px', top: '0', left: '50%', transform: 'translateX(-50%)', background: 'radial-gradient(circle, rgba(255,26,26,0.04), transparent 70%)' }} />
 
-      <header className="flex-shrink-0 border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm px-6 py-4 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="p-2 hover:bg-slate-800 rounded-xl transition-colors"
-          >
-            <ArrowLeft size={20} className="text-slate-400" />
-          </button>
+      {/* HEADER */}
+      <motion.header className="flex-shrink-0 sticky top-0 z-50 px-6 h-18 py-4 flex items-center justify-between relative" style={{ background: 'rgba(2,2,2,0.92)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,26,26,0.08)' }} initial={{ y: -50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+        <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,26,26,0.45), transparent)' }} />
+        <div className="flex items-center gap-4 relative z-10">
+          <motion.button onClick={() => navigate('/dashboard')} className="p-3 rounded-xl border transition-all" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.05)' }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <ArrowLeft size={18} className="text-zinc-500" />
+          </motion.button>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-              <Brain size={20} className="text-white" />
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #ff1a1a, #cc0000)', boxShadow: '0 0 20px rgba(255,26,26,0.4)' }}>
+              <Brain size={18} className="text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-white tracking-tight">AI Trainer</h1>
+              <h1 className="font-black italic tracking-tighter uppercase text-lg" style={{ fontFamily: 'JetBrains Mono, monospace' }}>AI_TRAINER</h1>
               <div className="flex items-center gap-1.5">
-                <div className={`w-1.5 h-1.5 ${!GROQ_API_KEY ? 'bg-red-400' : 'bg-green-400'} rounded-full animate-pulse`} />
-                <span className="text-xs text-slate-500">
-                  {!GROQ_API_KEY ? 'API Key Missing' : 'Powered by Grok • Knows your data'}
-                </span>
+                <div className="w-1.5 h-1.5 rounded-full animate-pulse bg-green-400" style={{ boxShadow: '0 0 6px #4ade80' }} />
+                <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest" style={{ fontFamily: 'JetBrains Mono, monospace' }}>BACKEND AI • AUTO FALLBACK</span>
               </div>
             </div>
           </div>
         </div>
+        <motion.button onClick={clearChat} className="p-3 rounded-xl border transition-all relative z-10" style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.05)' }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} title="Clear chat">
+          <RotateCcw size={16} className="text-zinc-500" />
+        </motion.button>
+      </motion.header>
 
-        <button
-          onClick={clearChat}
-          className="p-2 hover:bg-slate-800 rounded-xl transition-colors text-slate-400 hover:text-white"
-          title="Clear chat"
-        >
-          <RotateCcw size={18} />
-        </button>
-      </header>
-
-      <div className="flex-shrink-0 px-6 py-3 border-b border-slate-800/50 bg-slate-900/40">
+      {/* STATS BAR */}
+      <div className="flex-shrink-0 px-6 py-3 relative z-10" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(2,2,2,0.6)' }}>
         <div className="flex gap-6 overflow-x-auto pb-1 max-w-4xl mx-auto">
           {stats.map((stat, i) => (
             <div key={i} className="flex items-center gap-2 flex-shrink-0">
-              <stat.icon size={14} className={stat.color} />
-              <span className="text-xs text-slate-500">{stat.label}:</span>
-              <span className={`text-xs font-bold ${stat.color}`}>{stat.value || '—'}</span>
+              <stat.icon size={12} style={{ color: stat.color }} />
+              <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest" style={{ fontFamily: 'JetBrains Mono, monospace' }}>{stat.label}:</span>
+              <span className="text-[9px] font-black" style={{ color: stat.color, fontFamily: 'JetBrains Mono, monospace' }}>{stat.value || '—'}</span>
             </div>
           ))}
-          <div className="flex items-center gap-2 flex-shrink-0 ml-2 pl-4 border-l border-slate-700">
-            <Sparkles size={12} className="text-amber-400" />
-            <span className="text-xs text-slate-500">AI sees all your real data</span>
+          <div className="flex items-center gap-2 flex-shrink-0 ml-2 pl-4" style={{ borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
+            <Sparkles size={10} style={{ color: '#ff1a1a' }} />
+            <span className="text-[9px] text-zinc-700 font-black uppercase tracking-widest" style={{ fontFamily: 'JetBrains Mono, monospace' }}>LIVE DATA CONNECTED</span>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6 max-w-4xl mx-auto w-full">
+      {/* CHAT AREA */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 max-w-4xl mx-auto w-full relative z-10">
         {messages.map(msg => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {isLoading && messages[messages.length - 1]?.content === '' && (
+        {isLoading && (
           <TypingIndicator />
         )}
 
         <AnimatePresence>
           {showQuickActions && messages.length <= 2 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="mt-4"
-            >
-              <p className="text-xs text-slate-500 mb-3 font-medium uppercase tracking-wider">Quick actions</p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="mt-4">
+              <p className="text-[9px] text-zinc-600 mb-3 font-black uppercase tracking-[0.3em]" style={{ fontFamily: 'JetBrains Mono, monospace' }}>◈ QUICK COMMANDS</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {QUICK_ACTIONS.map((action, i) => (
-                  <motion.button
-                    key={i}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
+                  <motion.button key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
                     onClick={() => handleQuickAction(action.prompt)}
-                    className="flex items-center gap-3 p-4 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-slate-600 rounded-2xl text-left transition-all group"
-                  >
-                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${action.color} flex items-center justify-center flex-shrink-0 shadow-lg group-hover:scale-110 transition-transform`}>
-                      <action.icon size={16} className="text-white" />
+                    className="flex items-center gap-3 p-4 text-left transition-all group rounded-xl border relative overflow-hidden"
+                    style={{ background: 'rgba(255,255,255,0.02)', borderColor: 'rgba(255,255,255,0.05)' }}
+                    whileHover={{ scale: 1.02, borderColor: `${action.color}40`, background: `${action.color}08` }}
+                    whileTap={{ scale: 0.98 }}>
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${action.color}20`, border: `1px solid ${action.color}30` }}>
+                      <action.icon size={16} style={{ color: action.color }} />
                     </div>
-                    <span className="text-sm font-medium text-slate-200">{action.label}</span>
-                    <ChevronRight size={14} className="text-slate-600 ml-auto group-hover:text-slate-400 transition-colors" />
+                    <span className="text-sm font-bold text-zinc-300">{action.label}</span>
+                    <ChevronRight size={14} className="text-zinc-700 ml-auto group-hover:text-zinc-400 transition-colors" />
                   </motion.button>
                 ))}
               </div>
@@ -488,7 +495,8 @@ export default function AIAssistant() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="flex-shrink-0 border-t border-slate-800 bg-slate-900/80 backdrop-blur-sm px-4 py-4">
+      {/* INPUT BAR */}
+      <div className="flex-shrink-0 px-4 py-4 relative z-10" style={{ background: 'rgba(2,2,2,0.92)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(255,26,26,0.06)' }}>
         <div className="max-w-4xl mx-auto flex gap-3 items-end">
           <div className="flex-1 relative">
             <textarea
@@ -496,30 +504,25 @@ export default function AIAssistant() {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={!GROQ_API_KEY ? "⚠️ Add API key in .env file first" : "Ask me anything about your training, nutrition, recovery..."}
+              placeholder="Ask me about your training, nutrition, recovery..."
               rows={1}
-              disabled={isLoading || !GROQ_API_KEY}
-              className="w-full bg-slate-800 border border-slate-700 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 rounded-2xl px-5 py-4 text-sm text-white placeholder:text-slate-500 resize-none focus:outline-none transition-all disabled:opacity-50"
-              style={{ maxHeight: '120px' }}
-              onInput={e => {
-                e.target.style.height = 'auto'
-                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
-              }}
+              disabled={isLoading}
+              className="w-full rounded-2xl px-5 py-4 text-sm placeholder:text-zinc-700 resize-none focus:outline-none transition-all disabled:opacity-50"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)', color: '#e4e4e7', maxHeight: '120px' }}
+              onFocus={e => { e.target.style.borderColor = 'rgba(255,26,26,0.3)'; e.target.style.boxShadow = '0 0 20px rgba(255,26,26,0.08)' }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.06)'; e.target.style.boxShadow = 'none' }}
+              onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px' }}
             />
           </div>
-
-          <motion.button
-            onClick={() => sendMessage(input)}
-            disabled={!input.trim() || isLoading || !GROQ_API_KEY}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:from-slate-700 disabled:to-slate-700 rounded-2xl flex items-center justify-center transition-all flex-shrink-0 shadow-lg shadow-amber-500/20 disabled:shadow-none"
-          >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin text-white" /> : <Send size={18} className="text-white" />}
+          <motion.button onClick={() => sendMessage(input)} disabled={!input.trim() || isLoading}
+            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+            className="w-12 h-12 rounded-2xl flex items-center justify-center transition-all flex-shrink-0"
+            style={{ background: !input.trim() || isLoading ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #ff1a1a, #cc0000)', boxShadow: !input.trim() || isLoading ? 'none' : '0 0 20px rgba(255,26,26,0.35)' }}>
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin text-zinc-500" /> : <Send size={18} className={!input.trim() ? 'text-zinc-700' : 'text-white'} />}
           </motion.button>
         </div>
-        <p className="text-center text-xs text-slate-600 mt-2">
-          {!GROQ_API_KEY ? 'Add VITE_GROQ_API_KEY to .env file' : 'Press Enter to send • Shift+Enter for new line'}
+        <p className="text-center text-[9px] text-zinc-700 mt-2 font-black uppercase tracking-widest" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+          ENTER TO SEND • SHIFT+ENTER FOR NEW LINE
         </p>
       </div>
     </div>

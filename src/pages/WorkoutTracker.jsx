@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { 
   ArrowLeft, Plus, Trash2, Check, X, Timer, 
@@ -13,6 +13,81 @@ import {
 import toast from 'react-hot-toast'
 import { EmptyState } from '../components/EmptyState'
 import { WorkoutSkeleton } from '../components/LoadingSkeleton'
+import { useApi, apiPost } from '../hooks/useApi'
+
+const UI_THEME_KEY = 'uiColorTheme'
+const UI_THEMES = {
+  ice: {
+    name: 'Graphite + Ice',
+    page: 'linear-gradient(120deg, #0b0f14 0%, #0f141b 35%, #121821 70%, #0b0f14 100%)',
+    glowA: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.07), transparent 42%)',
+    glowB: 'radial-gradient(circle at 70% 30%, rgba(239,68,68,0.08), transparent 48%)',
+    accent: '#d1d5db',
+    accentSoft: 'rgba(209,213,219,0.2)'
+  },
+  copper: {
+    name: 'Matte + Copper',
+    page: 'linear-gradient(120deg, #0b0f14 0%, #0f141b 35%, #121821 70%, #0b0f14 100%)',
+    glowA: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.07), transparent 42%)',
+    glowB: 'radial-gradient(circle at 70% 30%, rgba(239,68,68,0.08), transparent 48%)',
+    accent: '#d1d5db',
+    accentSoft: 'rgba(209,213,219,0.2)'
+  },
+  mint: {
+    name: 'Obsidian + Mint',
+    page: 'linear-gradient(120deg, #0b0f14 0%, #0f141b 35%, #121821 70%, #0b0f14 100%)',
+    glowA: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.07), transparent 42%)',
+    glowB: 'radial-gradient(circle at 70% 30%, rgba(239,68,68,0.08), transparent 48%)',
+    accent: '#d1d5db',
+    accentSoft: 'rgba(209,213,219,0.2)'
+  },
+  crimson: {
+    name: 'Crimson Steel',
+    page: 'linear-gradient(120deg, #0b0f14 0%, #0f141b 35%, #121821 70%, #0b0f14 100%)',
+    glowA: 'radial-gradient(circle at 30% 50%, rgba(255,255,255,0.07), transparent 42%)',
+    glowB: 'radial-gradient(circle at 70% 30%, rgba(239,68,68,0.08), transparent 48%)',
+    accent: '#d1d5db',
+    accentSoft: 'rgba(209,213,219,0.2)'
+  }
+}
+
+const MATTE = {
+  page: 'linear-gradient(120deg, #0b0f14 0%, #0f141b 35%, #121821 70%, #0b0f14 100%)',
+  panel: 'linear-gradient(165deg, rgba(255,255,255,0.05) 0%, rgba(24,30,38,0.92) 30%, rgba(13,17,23,0.99) 72%)',
+  tile: 'linear-gradient(170deg, rgba(255,255,255,0.03) 0%, rgba(20,26,34,0.95) 45%, rgba(11,15,21,1) 100%)',
+  border: 'rgba(255,255,255,0.10)',
+  borderSoft: 'rgba(255,255,255,0.045)',
+  textSoft: '#b2bac7',
+}
+
+const MATTE_PANEL_STYLE = {
+  background: MATTE.panel,
+  border: `1px solid ${MATTE.borderSoft}`,
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -18px 28px rgba(0,0,0,0.55), 0 14px 24px rgba(0,0,0,0.48)',
+}
+
+const MATTE_TILE_STYLE = {
+  background: MATTE.tile,
+  border: `1px solid ${MATTE.borderSoft}`,
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 16px rgba(0,0,0,0.4)',
+}
+
+function toDayKey(rawDate) {
+  if (!rawDate) return null
+  if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate
+  let parsed = new Date(rawDate)
+  if (Number.isNaN(parsed.getTime()) && typeof rawDate === 'string' && /^[A-Za-z]{3}\s+\d{1,2}$/.test(rawDate.trim())) {
+    parsed = new Date(`${rawDate} ${new Date().getFullYear()}`)
+  }
+  if (Number.isNaN(parsed.getTime())) return null
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).toISOString().split('T')[0]
+}
+
+function formatWorkoutDate(rawDate) {
+  const dayKey = toDayKey(rawDate)
+  if (!dayKey) return 'Unknown'
+  return new Date(`${dayKey}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
 // Volume Display Card Component
 const VolumeCard = ({ currentWorkout }) => {
@@ -29,7 +104,8 @@ const VolumeCard = ({ currentWorkout }) => {
 
   return (
     <motion.div 
-      className="bg-gradient-to-br from-red-600 to-orange-600 rounded-2xl p-6 border border-red-500/30"
+      className="rounded-2xl p-6"
+      style={MATTE_PANEL_STYLE}
       initial={{ scale: 0.9, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       whileHover={{ scale: 1.02 }}
@@ -39,7 +115,7 @@ const VolumeCard = ({ currentWorkout }) => {
           <TrendingUp size={18} className="text-white" />
           Session Volume
         </h3>
-        <Flame className="text-yellow-300" size={24} />
+        <Flame className="text-zinc-300" size={24} />
       </div>
       <div className="flex items-baseline gap-2">
         <span className="text-5xl font-black text-white">
@@ -48,7 +124,7 @@ const VolumeCard = ({ currentWorkout }) => {
         <span className="text-2xl text-white/80">kg</span>
       </div>
       <p className="text-white/60 text-xs mt-2">
-        {completedSets} sets completed • ? • {currentWorkout.length} exercises
+        {completedSets} sets completed • {currentWorkout.length} exercises
       </p>
     </motion.div>
   )
@@ -56,6 +132,9 @@ const VolumeCard = ({ currentWorkout }) => {
 
 function WorkoutTracker() {
   const navigate = useNavigate()
+  const { data: apiWorkouts, refetch: refetchWorkouts } = useApi('/workouts')
+  const [themeName] = useState(() => localStorage.getItem(UI_THEME_KEY) || 'mint')
+  const theme = UI_THEMES[themeName] || UI_THEMES.ice
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('today')
   const [showAddTerminal, setShowAddTerminal] = useState(false)
@@ -87,7 +166,7 @@ function WorkoutTracker() {
     if (saved) {
       try {
         return JSON.parse(saved)
-      } catch (error) {
+      } catch {
         return []
       }
     }
@@ -152,8 +231,36 @@ function WorkoutTracker() {
   // Load workout history from localStorage
   const [workoutHistory, setWorkoutHistory] = useState(() => {
     const saved = localStorage.getItem('workoutHistory')
-    return saved ? JSON.parse(saved) : []
+    if (!saved) return []
+    try {
+      const parsed = JSON.parse(saved)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
   })
+
+  const normalizedApiWorkouts = useMemo(() => {
+    if (!Array.isArray(apiWorkouts)) return []
+    return apiWorkouts.map((w, idx) => ({
+      id: w._id || w.id || `workout-${toDayKey(w.date || w.createdAt) || 'unknown'}-${idx}`,
+      _id: w._id,
+      date: toDayKey(w.date || w.createdAt) || new Date().toISOString().split('T')[0],
+      exercises: Number(w.exercises) || 0,
+      completedSets: Number(w.completedSets) || 0,
+      volume: Number(w.volume) || 0,
+      calories: Number(w.calories) || 0,
+      duration: Number(w.duration) || 0,
+      fullWorkout: Array.isArray(w.workoutData) ? w.workoutData : (w.fullWorkout || []),
+      createdAt: w.createdAt || undefined,
+    }))
+  }, [apiWorkouts])
+
+  useEffect(() => {
+    if (normalizedApiWorkouts.length > 0) {
+      setWorkoutHistory(normalizedApiWorkouts)
+    }
+  }, [normalizedApiWorkouts])
 
   useEffect(() => {
     localStorage.setItem('workoutHistory', JSON.stringify(workoutHistory))
@@ -170,13 +277,6 @@ function WorkoutTracker() {
   useEffect(() => {
     setTimeout(() => setIsLoading(false), 800)
   }, [])
-
-  const exerciseProgression = [
-    { week: 'Week 1', bench: 60, squat: 100, deadlift: 120 },
-    { week: 'Week 2', bench: 65, squat: 110, deadlift: 130 },
-    { week: 'Week 3', bench: 70, squat: 120, deadlift: 140 },
-    { week: 'Week 4', bench: 75, squat: 130, deadlift: 150 },
-  ]
 
   const [newExercise, setNewExercise] = useState({ 
     name: '', 
@@ -241,7 +341,7 @@ function WorkoutTracker() {
   }
 
   // Finish workout and save to history
-  const finishWorkout = () => {
+  const finishWorkout = async () => {
     if (currentWorkout.length === 0) {
       toast.error('No exercises to save!')
       return
@@ -263,20 +363,36 @@ function WorkoutTracker() {
     // Estimate calories (rough: 1kg lifted = 0.1 calories)
     const estimatedCalories = Math.round(totalVolume * 0.1)
     
+    const dayKey = new Date().toISOString().split('T')[0]
     const workout = {
       id: Date.now(),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      date: dayKey,
       exercises: currentWorkout.length,
       completedSets: completedSets,
       volume: totalVolume,
       calories: estimatedCalories,
       duration: 45,
-      fullWorkout: currentWorkout
+      fullWorkout: currentWorkout,
+      createdAt: new Date().toISOString(),
     }
-    
-    setWorkoutHistory([workout, ...workoutHistory])
+
+    setWorkoutHistory(prev => [workout, ...prev])
     setCurrentWorkout([])
-    
+
+    const saved = await apiPost('/workouts', {
+      date: dayKey,
+      exercises: workout.exercises,
+      completedSets: workout.completedSets,
+      volume: workout.volume,
+      calories: workout.calories,
+      duration: workout.duration,
+      workoutData: workout.fullWorkout,
+    })
+
+    if (saved) {
+      refetchWorkouts()
+    }
+
     toast.success(`✓ Workout Saved!\nVolume: ${totalVolume.toLocaleString()}kg`, {
       duration: 5000,
     })
@@ -401,11 +517,57 @@ function WorkoutTracker() {
   const totalSets = currentWorkout.reduce((sum, ex) => sum + ex.sets.length, 0)
   const completionRate = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
 
+  const sortedHistory = useMemo(() => {
+    return [...workoutHistory].sort((a, b) => {
+      const aKey = toDayKey(a.date || a.createdAt)
+      const bKey = toDayKey(b.date || b.createdAt)
+      const aTs = aKey ? new Date(`${aKey}T00:00:00`).getTime() : 0
+      const bTs = bKey ? new Date(`${bKey}T00:00:00`).getTime() : 0
+      if (aTs !== bTs) return bTs - aTs
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    })
+  }, [workoutHistory])
+
+  const analyticsHistory = useMemo(() => {
+    return sortedHistory.slice(0, 7).reverse().map((w) => ({
+      ...w,
+      label: formatWorkoutDate(w.date || w.createdAt),
+    }))
+  }, [sortedHistory])
+
+  const strengthProgression = useMemo(() => {
+    const getMaxForKeywords = (exercises, keywords) => {
+      if (!Array.isArray(exercises)) return 0
+      return exercises.reduce((maxWeight, ex) => {
+        const name = String(ex?.name || '').toLowerCase()
+        const matches = keywords.some((k) => name.includes(k))
+        if (!matches || !Array.isArray(ex?.sets)) return maxWeight
+        const exMax = ex.sets.reduce((m, s) => Math.max(m, Number(s?.weight) || 0), 0)
+        return Math.max(maxWeight, exMax)
+      }, 0)
+    }
+
+    return sortedHistory
+      .slice(0, 8)
+      .reverse()
+      .map((w) => {
+        const exercises = Array.isArray(w.fullWorkout) ? w.fullWorkout : []
+        return {
+          week: formatWorkoutDate(w.date || w.createdAt),
+          bench: getMaxForKeywords(exercises, ['bench']),
+          squat: getMaxForKeywords(exercises, ['squat']),
+          deadlift: getMaxForKeywords(exercises, ['deadlift', 'romanian deadlift', 'rdl']),
+        }
+      })
+      .filter((r) => r.bench > 0 || r.squat > 0 || r.deadlift > 0)
+  }, [sortedHistory])
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null
+    const point = payload?.[0]?.payload
     return (
-      <div className="bg-slate-900 border border-amber-500/20 rounded-xl p-4 shadow-lg backdrop-blur-sm">
-        <p className="text-amber-400 font-bold text-sm mb-2">{label}</p>
+      <div className="rounded-xl p-4 shadow-lg backdrop-blur-sm" style={MATTE_TILE_STYLE}>
+        <p className="font-bold text-sm mb-2 text-zinc-300">{label}</p>
         <div className="space-y-1.5">
           {payload.map((item, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -417,46 +579,46 @@ function WorkoutTracker() {
             </div>
           ))}
         </div>
-        {workoutHistory.find(h => h.date === label)?.duration && (
-          <div className="mt-2 px-2 py-1 bg-amber-500/10 rounded text-[10px] font-bold text-amber-400">
-            Total Duration: {workoutHistory.find(h => h.date === label)?.duration} min
+        {point?.duration ? (
+          <div className="mt-2 px-2 py-1 rounded text-[10px] font-bold text-zinc-300" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            Total Duration: {point.duration} min
           </div>
-        )}
+        ) : null}
       </div>
     )
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 text-slate-100 p-8">
+      <div className="min-h-screen text-slate-100 p-8" style={{ background: theme.page }}>
         <WorkoutSkeleton />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-950 text-slate-100 font-sans overflow-x-hidden relative">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(245,158,11,0.05),transparent_40%)]" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(59,130,246,0.03),transparent_45%)]" />
+    <div className="min-h-screen text-slate-100 font-sans overflow-x-hidden relative" style={{ background: theme.page }}>
+      <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px)', backgroundSize: '64px 64px' }} />
+      <div className="absolute inset-0" style={{ background: theme.glowA }} />
+      <div className="absolute inset-0" style={{ background: theme.glowB }} />
       
       {/* HEADER */}
-      <header className="fixed top-0 w-full z-50 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 p-4 px-6 flex justify-between items-center">
+      <header className="fixed top-0 w-full z-50 backdrop-blur-xl p-4 px-6 lg:px-10 flex justify-between items-center" style={{ background: MATTE.panel, borderBottom: `1px solid ${MATTE.border}` }}>
         <div className="flex items-center gap-5">
           <button 
             onClick={() => navigate('/dashboard')}
-            className="p-2.5 hover:bg-slate-800 rounded-lg transition-colors"
+            className="p-2.5 rounded-lg transition-colors"
+            style={MATTE_TILE_STYLE}
           >
-            <ArrowLeft className="text-slate-400 hover:text-amber-400" size={22} />
+            <ArrowLeft className="text-zinc-400 hover:text-zinc-100" size={22} />
           </button>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Activity className="text-amber-400" size={28} />
+              <Activity className="text-zinc-300" size={28} />
             </div>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-100">
-                Workout Tracker
-              </h1>
-              <p className="text-xs text-slate-500 mt-0.5">Active training session</p>
+              <h1 className="text-2xl lg:text-3xl font-black tracking-tight text-slate-100">Workout Tracker</h1>
+              <p className="text-[10px] uppercase tracking-[0.2em] mt-1" style={{ color: MATTE.textSoft }}>Active training session</p>
             </div>
           </div>
         </div>
@@ -469,7 +631,8 @@ function WorkoutTracker() {
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
-                className="flex items-center gap-2 text-amber-500 font-mono text-sm font-medium bg-amber-500/10 px-4 py-2 rounded-full border border-amber-500/20"
+                className="flex items-center gap-2 text-zinc-200 font-mono text-sm font-medium px-4 py-2 rounded-full"
+                style={MATTE_TILE_STYLE}
               >
                 <Timer size={16} className="animate-pulse" />
                 <span>{timer}s rest</span>
@@ -479,7 +642,7 @@ function WorkoutTracker() {
           
           <div className="hidden md:flex items-center gap-8">
             <div className="text-center">
-              <div className="text-2xl font-bold text-amber-400">
+              <div className="text-2xl font-bold text-zinc-300">
                 {totalExercises}
               </div>
               <div className="text-[10px] text-slate-500 mt-1">Exercises</div>
@@ -491,7 +654,7 @@ function WorkoutTracker() {
               <div className="text-[10px] text-slate-500 mt-1">Sets completed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-400">
+              <div className="text-2xl font-bold text-zinc-300">
                 {completionRate}%
               </div>
               <div className="text-[10px] text-slate-500 mt-1">Session progress</div>
@@ -501,7 +664,8 @@ function WorkoutTracker() {
           {/* Template Button */}
           <button 
             onClick={() => setShowTemplates(true)} 
-            className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all mr-2"
+            className="p-3 rounded-xl transition-all mr-2"
+            style={MATTE_TILE_STYLE}
             title="Load Template"
           >
             <FolderOpen size={24} className="text-slate-400" />
@@ -510,7 +674,8 @@ function WorkoutTracker() {
           {/* Save Template Button */}
           <button 
             onClick={saveAsTemplate} 
-            className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all mr-2"
+            className="p-3 rounded-xl transition-all mr-2"
+            style={MATTE_TILE_STYLE}
             title="Save as Template"
           >
             <Save size={24} className="text-slate-400" />
@@ -518,23 +683,24 @@ function WorkoutTracker() {
           
           <button 
             onClick={() => setShowAddTerminal(true)} 
-            className="p-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 rounded-xl transition-all shadow-md shadow-amber-500/20"
+            className="p-3 rounded-xl transition-all"
+            style={{ background: 'linear-gradient(160deg, #f4f4f5 0%, #52525b 36%, #18181b 70%, #09090b 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45), 0 10px 20px rgba(0,0,0,0.45)' }}
           >
             <Plus size={24} strokeWidth={2.5} className="text-white" />
           </button>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto pt-28 px-4 md:px-8 pb-24 relative z-10">
+      <main className="w-full pt-28 px-4 md:px-8 lg:px-10 pb-24 relative z-10">
         {/* TABS */}
-        <div className="flex gap-8 border-b border-slate-800 mb-10 px-2">
+        <div className="flex gap-6 border-b mb-10 px-1" style={{ borderColor: MATTE.borderSoft }}>
           {['today', 'analytics'].map(tab => (
             <button 
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-4 text-sm font-medium uppercase tracking-wide transition-all relative group ${
+              className={`pb-4 text-[11px] font-bold uppercase tracking-[0.18em] transition-all relative group ${
                 activeTab === tab 
-                  ? 'text-amber-400' 
+                  ? 'text-zinc-200' 
                   : 'text-slate-500 hover:text-slate-200'
               }`}
             >
@@ -542,7 +708,8 @@ function WorkoutTracker() {
               {activeTab === tab && (
                 <motion.div 
                   layoutId="tabIndicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-blue-500"
+                  className="absolute bottom-0 left-0 right-0 h-0.5"
+                  style={{ background: 'linear-gradient(90deg, #f4f4f5, #6b7280)' }}
                   initial={{ scaleX: 0 }}
                   animate={{ scaleX: 1 }}
                   transition={{ duration: 0.3 }}
@@ -583,11 +750,12 @@ function WorkoutTracker() {
                     initial={{ opacity: 0, x: -30 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: exIdx * 0.1 }}
-                    className="bg-slate-800/50 rounded-2xl overflow-hidden border border-slate-800 group hover:border-amber-500/30 transition-all"
+                    className="rounded-2xl overflow-hidden group transition-all"
+                    style={MATTE_PANEL_STYLE}
                   >
-                    <div className="flex justify-between items-center p-6 bg-slate-900 border-b border-slate-800">
+                    <div className="flex justify-between items-center p-6 border-b" style={{ background: MATTE.tile, borderColor: MATTE.borderSoft }}>
                       <div className="flex items-center gap-5">
-                        <div className="w-12 h-12 bg-gradient-to-br from-amber-500/15 to-orange-600/15 border border-amber-500/20 rounded-xl flex items-center justify-center text-amber-400 font-bold text-lg">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-zinc-200 font-bold text-lg" style={MATTE_TILE_STYLE}>
                           {exIdx + 1}
                         </div>
                         <h2 className="text-2xl font-bold text-slate-100">
@@ -610,13 +778,14 @@ function WorkoutTracker() {
                           key={sIdx}
                           className={`relative p-5 rounded-xl border-2 transition-all duration-300 ${
                             set.completed 
-                              ? 'bg-gradient-to-br from-amber-500 to-orange-600 border-amber-500' 
-                              : 'bg-slate-900 border-slate-800 hover:border-amber-500/40'
+                              ? 'bg-gradient-to-br from-zinc-200 to-zinc-500 border-zinc-300 text-black'
+                              : 'border-slate-800 hover:border-zinc-500/50'
                           }`}
+                          style={!set.completed ? MATTE_TILE_STYLE : undefined}
                         >
                           <div className="flex justify-between items-start mb-3">
                             <span className={`text-xs font-medium uppercase tracking-wide ${
-                              set.completed ? 'text-white/90' : 'text-amber-400/80'
+                              set.completed ? 'text-black/80' : 'text-zinc-300'
                             }`}>
                               Set {sIdx + 1}
                             </span>
@@ -626,8 +795,8 @@ function WorkoutTracker() {
                                 onClick={() => openNoteModal(ex.id, sIdx, set.notes || '')}
                                 className={`p-1.5 rounded-lg transition-all ${
                                   set.notes 
-                                    ? 'text-amber-400 bg-amber-500/20' 
-                                    : 'text-slate-500 hover:text-amber-400 hover:bg-amber-500/10'
+                                    ? 'text-zinc-200 bg-white/10' 
+                                    : 'text-slate-500 hover:text-zinc-200 hover:bg-white/10'
                                 }`}
                                 title={set.notes || 'Add note'}
                               >
@@ -640,11 +809,11 @@ function WorkoutTracker() {
                                 className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
                                   set.completed 
                                     ? 'bg-white border-white scale-110' 
-                                    : 'border-amber-500/30 bg-slate-800 hover:border-amber-500'
+                                    : 'border-zinc-400/40 bg-slate-800 hover:border-zinc-300'
                                 }`}
                               >
                                 {set.completed && (
-                                  <Check size={16} strokeWidth={3} className="text-amber-600" />
+                                  <Check size={16} strokeWidth={3} className="text-zinc-700" />
                                 )}
                               </button>
                             </div>
@@ -657,7 +826,7 @@ function WorkoutTracker() {
                                 <span className="text-sm ml-1 opacity-70">kg</span>
                               </p>
                               <p className={`text-sm font-medium ${
-                                set.completed ? 'text-white/80' : 'text-amber-400/70'
+                                set.completed ? 'text-white/80' : 'text-zinc-400'
                               }`}>
                                 {set.reps} reps
                               </p>
@@ -665,9 +834,9 @@ function WorkoutTracker() {
                             
                             {/* Show note if exists */}
                             {set.notes && (
-                              <div className="mt-2 pt-2 border-t border-amber-500/30">
+                                <div className="mt-2 pt-2 border-t border-zinc-400/30">
                                 <div className="flex items-start gap-1.5 text-xs font-medium text-white/80">
-                                  <MessageSquare size={12} className="text-amber-300 flex-shrink-0 mt-0.5" />
+                                  <MessageSquare size={12} className="text-zinc-300 flex-shrink-0 mt-0.5" />
                                   <span className="italic">{set.notes}</span>
                                 </div>
                               </div>
@@ -685,7 +854,8 @@ function WorkoutTracker() {
                   onClick={finishWorkout}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="w-full bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-500 hover:to-emerald-600 py-5 rounded-2xl font-bold text-lg text-white shadow-md shadow-green-500/20 transition-all mt-2"
+                  className="w-full py-5 rounded-2xl font-bold text-lg text-white transition-all mt-2"
+                  style={{ background: 'linear-gradient(160deg, #f4f4f5 0%, #52525b 36%, #18181b 70%, #09090b 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45), 0 16px 30px rgba(0,0,0,0.5)' }}
                 >
                   ✓ Finish Workout & Save
                   <ChevronRight size={18} className="inline ml-2" />
@@ -708,33 +878,33 @@ function WorkoutTracker() {
               ) : (
                 <>
                   {/* WORKOUT VOLUME & CALORIES CHART */}
-                  <div className="bg-slate-800/50 rounded-2xl border border-slate-800 p-6">
+                  <div className="rounded-2xl p-6" style={MATTE_PANEL_STYLE}>
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h2 className="text-xl font-bold flex items-center gap-2.5 text-slate-100">
-                          <BarChart3 className="text-blue-400" size={24} />
+                          <BarChart3 className="text-zinc-300" size={24} />
                           Training Volume Analytics
                         </h2>
                         <p className="text-slate-500 text-sm mt-1">Recent workout sessions</p>
                       </div>
                       <div className="flex gap-4">
                         <div className="flex items-center gap-1.5 text-xs">
-                          <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
                           <span>Volume (kg)</span>
                         </div>
                         <div className="flex items-center gap-1.5 text-xs">
-                          <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
                           <span>Calories</span>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="h-[300px] -mx-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={workoutHistory.slice(0, 7).reverse()} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
+                    <div className="h-[300px] -mx-4 min-w-0">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                        <LineChart data={analyticsHistory} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
                           <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
                           <XAxis 
-                            dataKey="date" 
+                            dataKey="label" 
                             stroke="#64748b" 
                             fontSize={12} 
                             tickLine={false} 
@@ -750,7 +920,7 @@ function WorkoutTracker() {
                           />
                           <YAxis 
                             yAxisId="right" 
-                            stroke="#f59e0b" 
+                            stroke="#f87171" 
                             fontSize={11} 
                             tickLine={false} 
                             axisLine={false} 
@@ -763,9 +933,9 @@ function WorkoutTracker() {
                             yAxisId="left" 
                             type="monotone" 
                             dataKey="volume" 
-                            stroke="#3b82f6" 
+                            stroke="#d1d5db" 
                             strokeWidth={2.5} 
-                            dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }} 
+                            dot={{ fill: '#d1d5db', strokeWidth: 2, r: 4 }} 
                             activeDot={{ r: 7 }} 
                           />
                           
@@ -773,9 +943,9 @@ function WorkoutTracker() {
                             yAxisId="right" 
                             type="monotone" 
                             dataKey="calories" 
-                            stroke="#f59e0b" 
+                            stroke="#f87171" 
                             strokeWidth={2.5} 
-                            dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }} 
+                            dot={{ fill: '#f87171', strokeWidth: 2, r: 4 }} 
                             activeDot={{ r: 7 }} 
                           />
                         </LineChart>
@@ -783,30 +953,30 @@ function WorkoutTracker() {
                     </div>
                     
                     <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center p-3 bg-slate-900 rounded-xl">
+                        <div className="text-center p-3 rounded-xl" style={MATTE_TILE_STYLE}>
                         <div className="text-xs text-slate-500 mb-1">Avg Volume</div>
-                        <div className="font-bold text-lg text-blue-400">
+                        <div className="font-bold text-lg text-zinc-300">
                           {workoutHistory.length > 0 ? Math.round(workoutHistory.reduce((sum, d) => sum + d.volume, 0) / workoutHistory.length).toLocaleString() : 0}
                         </div>
                         <div className="text-[10px] text-slate-600">kg/session</div>
                       </div>
-                      <div className="text-center p-3 bg-slate-900 rounded-xl">
+                      <div className="text-center p-3 rounded-xl" style={MATTE_TILE_STYLE}>
                         <div className="text-xs text-slate-500 mb-1">Avg Calories</div>
-                        <div className="font-bold text-lg text-amber-400">
+                        <div className="font-bold text-lg text-red-300">
                           {workoutHistory.length > 0 ? Math.round(workoutHistory.reduce((sum, d) => sum + d.calories, 0) / workoutHistory.length) : 0}
                         </div>
                         <div className="text-[10px] text-slate-600">kcal/session</div>
                       </div>
-                      <div className="text-center p-3 bg-slate-900 rounded-xl">
+                      <div className="text-center p-3 rounded-xl" style={MATTE_TILE_STYLE}>
                         <div className="text-xs text-slate-500 mb-1">Avg Duration</div>
-                        <div className="font-bold text-lg text-green-400">
+                        <div className="font-bold text-lg text-zinc-300">
                           {workoutHistory.length > 0 ? Math.round(workoutHistory.reduce((sum, d) => sum + d.duration, 0) / workoutHistory.length) : 0}
                         </div>
                         <div className="text-[10px] text-slate-600">min/session</div>
                       </div>
-                      <div className="text-center p-3 bg-slate-900 rounded-xl">
+                      <div className="text-center p-3 rounded-xl" style={MATTE_TILE_STYLE}>
                         <div className="text-xs text-slate-500 mb-1">Total Sessions</div>
-                        <div className="font-bold text-lg text-purple-400">
+                        <div className="font-bold text-lg text-zinc-300">
                           {workoutHistory.length}
                         </div>
                         <div className="text-[10px] text-slate-600">completed</div>
@@ -815,75 +985,81 @@ function WorkoutTracker() {
                   </div>
 
                   {/* STRENGTH PROGRESSION CHART */}
-                  <div className="bg-slate-800/50 rounded-2xl border border-slate-800 p-6">
+                  <div className="rounded-2xl p-6" style={MATTE_PANEL_STYLE}>
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h2 className="text-xl font-bold flex items-center gap-2.5 text-slate-100">
-                          <Target className="text-amber-400" size={24} />
+                          <Target className="text-zinc-300" size={24} />
                           Strength Progression
                         </h2>
                         <p className="text-slate-500 text-sm mt-1">Weight lifted over time</p>
                       </div>
                     </div>
                     
-                    <div className="h-[260px] -mx-4">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={exerciseProgression} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
-                          <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
-                          <XAxis 
-                            dataKey="week" 
-                            stroke="#64748b" 
-                            fontSize={12} 
-                            tickLine={false} 
-                            axisLine={{ stroke: '#334155' }} 
-                          />
-                          <YAxis 
-                            stroke="#64748b" 
-                            fontSize={11} 
-                            tickLine={false} 
-                            axisLine={false} 
-                            width={40}
-                          />
-                          <Tooltip 
-                            cursor={{ fill: '#334155', opacity: 0.5 }}
-                            contentStyle={{ 
-                              backgroundColor: '#1e293b', 
-                              border: '1px solid #334155', 
-                              borderRadius: '10px'
-                            }}
-                            labelStyle={{ color: '#cbd5e1', fontWeight: 500 }}
-                          />
-                          
-                          <Bar dataKey="bench" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={25}>
-                            {exerciseProgression.map((entry, index) => (
-                              <Cell key={`cell-bench-${index}`} fill="#3b82f6" />
-                            ))}
-                          </Bar>
-                          <Bar dataKey="squat" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={25}>
-                            {exerciseProgression.map((entry, index) => (
-                              <Cell key={`cell-squat-${index}`} fill="#8b5cf6" />
-                            ))}
-                          </Bar>
-                          <Bar dataKey="deadlift" fill="#10b981" radius={[6, 6, 0, 0]} barSize={25}>
-                            {exerciseProgression.map((entry, index) => (
-                              <Cell key={`cell-deadlift-${index}`} fill="#10b981" />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="h-[260px] -mx-4 min-w-0">
+                      {strengthProgression.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-slate-500 text-sm px-4 text-center">
+                          Log Bench, Squat, or Deadlift in workouts to see strength progression.
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                          <BarChart data={strengthProgression} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
+                            <CartesianGrid stroke="#334155" strokeDasharray="3 3" vertical={false} />
+                            <XAxis 
+                              dataKey="week" 
+                              stroke="#64748b" 
+                              fontSize={12} 
+                              tickLine={false} 
+                              axisLine={{ stroke: '#334155' }} 
+                            />
+                            <YAxis 
+                              stroke="#64748b" 
+                              fontSize={11} 
+                              tickLine={false} 
+                              axisLine={false} 
+                              width={40}
+                            />
+                            <Tooltip 
+                              cursor={{ fill: '#334155', opacity: 0.5 }}
+                              contentStyle={{ 
+                                backgroundColor: '#1e293b', 
+                                border: '1px solid #334155', 
+                                borderRadius: '10px'
+                              }}
+                              labelStyle={{ color: '#cbd5e1', fontWeight: 500 }}
+                            />
+                            
+                            <Bar dataKey="bench" fill="#d1d5db" radius={[6, 6, 0, 0]} barSize={25}>
+                              {strengthProgression.map((entry, index) => (
+                                <Cell key={`cell-bench-${index}`} fill="#d1d5db" />
+                              ))}
+                            </Bar>
+                            <Bar dataKey="squat" fill="#a1a1aa" radius={[6, 6, 0, 0]} barSize={25}>
+                              {strengthProgression.map((entry, index) => (
+                                <Cell key={`cell-squat-${index}`} fill="#a1a1aa" />
+                              ))}
+                            </Bar>
+                            <Bar dataKey="deadlift" fill="#f87171" radius={[6, 6, 0, 0]} barSize={25}>
+                              {strengthProgression.map((entry, index) => (
+                                <Cell key={`cell-deadlift-${index}`} fill="#f87171" />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      )}
                     </div>
                     
                     <div className="mt-5 flex justify-center gap-5">
                       <div className="flex items-center gap-1.5 text-xs">
-                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
                         <span>Bench Press</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs">
-                        <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-zinc-500" />
                         <span>Squat</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs">
-                        <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
                         <span>Deadlift</span>
                       </div>
                     </div>
@@ -892,29 +1068,30 @@ function WorkoutTracker() {
                   {/* RECENT WORKOUTS LIST */}
                   <div className="space-y-3">
                     <h3 className="text-lg font-bold text-slate-200 mb-4">Recent Workouts</h3>
-                    {workoutHistory.slice(0, 10).map((h, i) => (
+                    {sortedHistory.slice(0, 10).map((h, i) => (
                       <motion.div
-                        key={h.id}
+                        key={h._id || h.id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.05 }}
-                        className="bg-slate-800/50 rounded-xl p-4 border border-slate-800 hover:border-blue-500/30 transition-all"
+                        className="rounded-xl p-4 transition-all"
+                        style={MATTE_TILE_STYLE}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500/15 to-cyan-600/15 rounded-lg flex items-center justify-center text-blue-400 border border-blue-500/20">
+                            <div className="w-12 h-12 bg-gradient-to-br from-zinc-500/15 to-zinc-700/15 rounded-lg flex items-center justify-center text-zinc-300 border border-zinc-500/20">
                               <Calendar size={20} />
                             </div>
                             <div>
-                              <p className="font-medium text-lg text-slate-100">{h.date}</p>
+                              <p className="font-medium text-lg text-slate-100">{formatWorkoutDate(h.date || h.createdAt)}</p>
                               <p className="text-xs text-slate-500 mt-0.5">
-                                {h.exercises} exercises • ? • {h.completedSets} sets • ? • {h.volume.toLocaleString()}kg
+                                {h.exercises} exercises • {h.completedSets} sets • {(Number(h.volume) || 0).toLocaleString()}kg
                               </p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="font-bold text-xl text-amber-400">
-                              +{h.calories}
+                            <div className="font-bold text-xl text-red-300">
+                              +{Number(h.calories) || 0}
                             </div>
                             <div className="text-xs text-slate-500 mt-0.5">calories burned</div>
                           </div>
@@ -943,7 +1120,8 @@ function WorkoutTracker() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-2xl bg-slate-900 rounded-2xl p-7 shadow-2xl border border-slate-800 max-h-[90vh] overflow-y-auto"
+              className="w-full max-w-2xl rounded-2xl p-7 shadow-2xl max-h-[90vh] overflow-y-auto"
+              style={MATTE_PANEL_STYLE}
               onClick={e => e.stopPropagation()}
             >
               <button 
@@ -965,7 +1143,7 @@ function WorkoutTracker() {
                   value={newExercise.name} 
                   onChange={e => setNewExercise({...newExercise, name: e.target.value})}
                   placeholder="Exercise name (e.g., Bench Press)" 
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400/30 transition-all"
                 />
 
                 <div className="space-y-4">
@@ -975,7 +1153,7 @@ function WorkoutTracker() {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={addSetField}
-                      className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-medium text-sm"
+                      className="flex items-center gap-1.5 text-zinc-300 hover:text-zinc-200 font-medium text-sm"
                     >
                       <Plus size={18} strokeWidth={2.5} />
                       Add Set
@@ -990,7 +1168,7 @@ function WorkoutTracker() {
                           type="number" 
                           value={set.weight} 
                           onChange={e => updateSet(index, 'weight', e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-lg font-medium text-center text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-lg font-medium text-center text-white focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400/30 transition-all"
                           placeholder="0"
                         />
                       </div>
@@ -1000,7 +1178,7 @@ function WorkoutTracker() {
                           type="number" 
                           value={set.reps} 
                           onChange={e => updateSet(index, 'reps', e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-lg font-medium text-center text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all"
+                          className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-lg font-medium text-center text-white focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400/30 transition-all"
                           placeholder="10"
                         />
                       </div>
@@ -1026,7 +1204,7 @@ function WorkoutTracker() {
                   disabled={!newExercise.name.trim()}
                   className={`w-full py-4 rounded-xl font-bold text-lg shadow-md transition-all mt-2 flex items-center justify-center gap-2.5 ${
                     newExercise.name.trim() 
-                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 shadow-amber-500/30' 
+                      ? 'bg-gradient-to-r from-zinc-300 to-zinc-500 hover:from-zinc-200 hover:to-zinc-400 text-slate-900 shadow-zinc-500/30' 
                       : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                   }`}
                 >
@@ -1053,7 +1231,8 @@ function WorkoutTracker() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-3xl bg-slate-900 rounded-2xl p-7 shadow-2xl border border-slate-800 max-h-[80vh] overflow-y-auto"
+              className="w-full max-w-3xl rounded-2xl p-7 shadow-2xl max-h-[80vh] overflow-y-auto"
+              style={MATTE_PANEL_STYLE}
               onClick={e => e.stopPropagation()}
             >
               <button 
@@ -1066,7 +1245,7 @@ function WorkoutTracker() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-                    <Bookmark className="text-amber-400" size={28} />
+                    <Bookmark className="text-zinc-300" size={28} />
                     Workout Templates
                   </h2>
                   <p className="text-slate-500">Load a saved template to start your workout</p>
@@ -1085,7 +1264,7 @@ function WorkoutTracker() {
                         key={template.id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-amber-500/30 transition-all group"
+                        className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 hover:border-zinc-500/30 transition-all group"
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -1101,7 +1280,7 @@ function WorkoutTracker() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => loadTemplate(template)}
-                              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold rounded-lg text-sm transition-all"
+                              className="px-4 py-2 bg-zinc-300 hover:bg-zinc-200 text-slate-900 font-bold rounded-lg text-sm transition-all"
                             >
                               Load
                             </button>
@@ -1137,7 +1316,8 @@ function WorkoutTracker() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-md bg-slate-900 rounded-2xl p-7 shadow-2xl border border-slate-800"
+              className="w-full max-w-md rounded-2xl p-7 shadow-2xl"
+              style={MATTE_PANEL_STYLE}
               onClick={e => e.stopPropagation()}
             >
               <button 
@@ -1150,7 +1330,7 @@ function WorkoutTracker() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-                    <Save className="text-amber-400" size={24} />
+                    <Save className="text-zinc-300" size={24} />
                     Save as Template
                   </h2>
                   <p className="text-slate-500">Give your template a name</p>
@@ -1162,7 +1342,7 @@ function WorkoutTracker() {
                   value={newTemplateName}
                   onChange={(e) => setNewTemplateName(e.target.value)}
                   placeholder="e.g., Push Day, Full Body, etc." 
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400/30 transition-all"
                 />
 
                 <div className="flex gap-3">
@@ -1174,7 +1354,7 @@ function WorkoutTracker() {
                   </button>
                   <button
                     onClick={createTemplate}
-                    className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 font-bold rounded-xl transition-all"
+                    className="flex-1 py-3 bg-gradient-to-r from-zinc-300 to-zinc-500 hover:from-zinc-200 hover:to-zinc-400 text-slate-900 font-bold rounded-xl transition-all"
                   >
                     Save Template
                   </button>
@@ -1199,7 +1379,8 @@ function WorkoutTracker() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-md bg-slate-900 rounded-2xl p-7 shadow-2xl border border-slate-800"
+              className="w-full max-w-md rounded-2xl p-7 shadow-2xl"
+              style={MATTE_PANEL_STYLE}
               onClick={e => e.stopPropagation()}
             >
               <button 
@@ -1212,7 +1393,7 @@ function WorkoutTracker() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-2">
-                    <MessageSquare className="text-amber-400" size={24} />
+                    <MessageSquare className="text-zinc-300" size={24} />
                     Add Note
                   </h2>
                   <p className="text-slate-500">How did this set feel?</p>
@@ -1224,7 +1405,7 @@ function WorkoutTracker() {
                   onChange={(e) => setNoteText(e.target.value)}
                   placeholder="e.g., Felt heavy, good form, add weight next time..."
                   rows={4}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/30 transition-all resize-none"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-5 py-4 text-lg font-medium text-white placeholder:text-slate-500 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400/30 transition-all resize-none"
                 />
 
                 <div className="flex gap-3">
@@ -1236,7 +1417,7 @@ function WorkoutTracker() {
                   </button>
                   <button
                     onClick={saveNote}
-                    className="flex-1 py-3 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 font-bold rounded-xl transition-all"
+                    className="flex-1 py-3 bg-gradient-to-r from-zinc-300 to-zinc-500 hover:from-zinc-200 hover:to-zinc-400 text-slate-900 font-bold rounded-xl transition-all"
                   >
                     Save Note
                   </button>
