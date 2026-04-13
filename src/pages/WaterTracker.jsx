@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Droplet, Plus, Minus, RotateCcw, Zap, Target } from 'lucide-react'
+import { ArrowLeft, Droplet, Plus, Minus, RotateCcw, Zap, Target, History } from 'lucide-react'
+import { getTodayWater, getWaterIntake, saveWaterIntake } from '../services/api'
 
 const GLASS_SIZE_ML = 250
 const DAILY_GOAL = 8
+const GOAL_ML = DAILY_GOAL * GLASS_SIZE_ML
 
 const HYDRATION_TIPS = [
   { icon: '⚡', title: 'MORNING PROTOCOL', desc: 'Down 500ml immediately on waking — rehydrates cells and kickstarts metabolism' },
@@ -13,36 +15,164 @@ const HYDRATION_TIPS = [
   { icon: '🌙', title: 'EVENING FLUSH', desc: 'Drink 250ml before bed to support overnight cellular repair and recovery' },
 ]
 
+const asNumber = (value, fallback = 0) => {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
+const clampGlasses = (value) => {
+  return Math.max(0, Math.min(DAILY_GOAL, Math.round(asNumber(value, 0))))
+}
+
+const getTodayKey = () => new Date().toISOString().split('T')[0]
+
+const toDayKey = (rawDate) => {
+  if (!rawDate) return null
+  if (typeof rawDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return rawDate
+
+  const parsed = new Date(rawDate)
+  if (Number.isNaN(parsed.getTime())) return null
+
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).toISOString().split('T')[0]
+}
+
+const formatLogDate = (rawDate) => {
+  const dayKey = toDayKey(rawDate)
+  if (!dayKey) return 'Unknown date'
+  const parsed = new Date(`${dayKey}T00:00:00`)
+  return parsed.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
 function WaterTracker() {
   const navigate = useNavigate()
   const [waterIntake, setWaterIntake] = useState(0)
+  const [historyLogs, setHistoryLogs] = useState([])
+  const [usingBackend, setUsingBackend] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
-  useEffect(() => {
-    const saved = localStorage.getItem('waterIntake')
-    const savedDate = localStorage.getItem('waterDate')
-    const today = new Date().toDateString()
-    if (savedDate === today && saved) setWaterIntake(parseInt(saved))
-    else { setWaterIntake(0); localStorage.setItem('waterDate', today) }
+  const persistLocalToday = useCallback((glasses) => {
+    const safe = clampGlasses(glasses)
+    localStorage.setItem('waterDate', getTodayKey())
+    localStorage.setItem('waterIntake', String(safe))
   }, [])
 
+  const loadLocalToday = useCallback(() => {
+    const today = getTodayKey()
+    const savedDate = toDayKey(localStorage.getItem('waterDate'))
+    const savedGlasses = clampGlasses(localStorage.getItem('waterIntake'))
+
+    if (savedDate === today) {
+      setWaterIntake(savedGlasses)
+    } else {
+      setWaterIntake(0)
+      persistLocalToday(0)
+    }
+
+    setHistoryLogs([])
+  }, [persistLocalToday])
+
   useEffect(() => {
-    localStorage.setItem('waterIntake', waterIntake.toString())
-  }, [waterIntake])
+    let cancelled = false
+
+    const loadData = async () => {
+      const rawToken = localStorage.getItem('token')
+      const token = rawToken && rawToken !== 'null' && rawToken !== 'undefined' ? rawToken : null
+      const canUseBackend = Boolean(token && token !== 'demo-token-skip-auth')
+
+      if (!canUseBackend) {
+        if (!cancelled) {
+          setUsingBackend(false)
+          loadLocalToday()
+        }
+        return
+      }
+
+      try {
+        const [todayRecord, allRecords] = await Promise.all([getTodayWater(), getWaterIntake()])
+        if (cancelled) return
+
+        const backendGlasses = clampGlasses(asNumber(todayRecord?.amount, 0) / GLASS_SIZE_ML)
+        setWaterIntake(backendGlasses)
+        persistLocalToday(backendGlasses)
+        setHistoryLogs(Array.isArray(allRecords) ? allRecords : [])
+        setUsingBackend(true)
+      } catch (error) {
+        console.error('Failed to load water data:', error)
+        if (!cancelled) {
+          setUsingBackend(false)
+          loadLocalToday()
+        }
+      }
+    }
+
+    void loadData()
+
+    return () => {
+      cancelled = true
+    }
+  }, [loadLocalToday, persistLocalToday])
+
+  const syncBackend = useCallback(async (nextGlasses) => {
+    if (!usingBackend) return
+
+    setSyncing(true)
+    try {
+      await saveWaterIntake({
+        date: getTodayKey(),
+        amount: nextGlasses * GLASS_SIZE_ML,
+        goal: GOAL_ML,
+      })
+
+      const allRecords = await getWaterIntake()
+      setHistoryLogs(Array.isArray(allRecords) ? allRecords : [])
+    } catch (error) {
+      console.error('Failed to sync water intake:', error)
+    } finally {
+      setSyncing(false)
+    }
+  }, [usingBackend])
+
+  const updateWaterIntake = useCallback((nextGlasses) => {
+    const safe = clampGlasses(nextGlasses)
+    setWaterIntake(safe)
+    persistLocalToday(safe)
+    void syncBackend(safe)
+  }, [persistLocalToday, syncBackend])
 
   const addGlass = () => {
-    if (waterIntake < DAILY_GOAL) {
-      setWaterIntake(w => w + 1)
-    }
+    if (waterIntake < DAILY_GOAL) updateWaterIntake(waterIntake + 1)
   }
 
-  const removeGlass = () => { if (waterIntake > 0) setWaterIntake(w => w - 1) }
-  const reset = () => { setWaterIntake(0) }
+  const removeGlass = () => {
+    if (waterIntake > 0) updateWaterIntake(waterIntake - 1)
+  }
+
+  const reset = () => {
+    updateWaterIntake(0)
+  }
 
   const percentage = Math.min((waterIntake / DAILY_GOAL) * 100, 100)
   const totalMl = waterIntake * GLASS_SIZE_ML
-  const goalMl = DAILY_GOAL * GLASS_SIZE_ML
+  const goalMl = GOAL_ML
   const remaining = Math.max(goalMl - totalMl, 0)
   const isGoalMet = waterIntake >= DAILY_GOAL
+
+  const previousLogs = useMemo(() => {
+    if (!usingBackend) return []
+
+    const today = getTodayKey()
+    return (Array.isArray(historyLogs) ? historyLogs : [])
+      .filter((entry) => {
+        const dayKey = toDayKey(entry?.date || entry?.createdAt)
+        return dayKey && dayKey !== today
+      })
+      .sort((a, b) => {
+        const aKey = toDayKey(a?.date || a?.createdAt) || ''
+        const bKey = toDayKey(b?.date || b?.createdAt) || ''
+        return bKey.localeCompare(aKey)
+      })
+      .slice(0, 10)
+  }, [historyLogs, usingBackend])
 
   const radius = 110
   const circ = 2 * Math.PI * radius
@@ -68,6 +198,9 @@ function WaterTracker() {
             </h1>
             <p className="text-[10px] font-bold tracking-[0.3em] uppercase mt-0.5" style={{ color: isGoalMet ? '#22c55e' : blueColor, fontFamily: 'JetBrains Mono, monospace' }}>
               {isGoalMet ? '✓ GOAL ACHIEVED' : `${waterIntake}/${DAILY_GOAL} GLASSES LOGGED`}
+            </p>
+            <p className="text-[9px] font-bold tracking-[0.16em] uppercase mt-1 text-zinc-600" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              {usingBackend ? (syncing ? 'SYNCING TO BACKEND...' : 'BACKEND SYNC ACTIVE') : 'LOCAL MODE'}
             </p>
           </div>
         </div>
@@ -190,6 +323,55 @@ function WaterTracker() {
               </motion.button>
             ))}
           </div>
+        </motion.div>
+
+        {/* PREVIOUS DAYS LOGS */}
+        <motion.div className="rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(0,136,255,0.06)' }} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div className="flex items-center gap-2">
+              <History size={12} style={{ color: blueColor }} />
+              <p className="text-[10px] font-black tracking-[0.3em] uppercase text-zinc-500" style={{ fontFamily: 'JetBrains Mono, monospace' }}>PREVIOUS LOGS</p>
+            </div>
+            <span className="text-[9px] uppercase tracking-[0.14em] text-zinc-600" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              {usingBackend ? `${previousLogs.length} days` : 'backend required'}
+            </span>
+          </div>
+
+          {usingBackend ? (
+            previousLogs.length > 0 ? (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {previousLogs.map((entry, idx) => {
+                  const amount = Math.max(0, asNumber(entry?.amount, 0))
+                  const goal = Math.max(1, asNumber(entry?.goal, GOAL_ML))
+                  const pct = Math.max(0, Math.min(100, Math.round((amount / goal) * 100)))
+
+                  return (
+                    <div key={`${entry?._id || entry?.date || idx}`} className="p-3 rounded-xl border" style={{ background: 'rgba(0,136,255,0.03)', borderColor: 'rgba(0,136,255,0.08)' }}>
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-zinc-300" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {formatLogDate(entry?.date || entry?.createdAt)}
+                        </p>
+                        <p className="text-[10px] font-black text-zinc-100" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                          {amount}ml / {goal}ml
+                        </p>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${blueColor}, #38bdf8)` }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-[10px] text-zinc-500 font-bold tracking-[0.12em] uppercase" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+                No previous backend logs yet. Keep logging daily to build history.
+              </p>
+            )
+          ) : (
+            <p className="text-[10px] text-zinc-500 font-bold tracking-[0.12em] uppercase" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+              Sign in with your account to store and view previous-day water logs from backend.
+            </p>
+          )}
         </motion.div>
 
         {/* HYDRATION TIPS */}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowRight, Lock, User, Zap, AlertTriangle, ChevronLeft, Loader2 } from 'lucide-react'
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion'
-import { login, signup } from '../services/api'
+import { login, signup, clearUserData } from '../services/api'
 import toast from 'react-hot-toast'
 
 // --- 1. THE WARP ENGINE ---
@@ -280,7 +280,10 @@ function LoginPage() {
   }
 
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:5000/api/auth/google'
+    const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+    const apiBase = rawApiUrl.replace(/\/api\/?$/, '')
+    const frontendOrigin = window.location.origin
+    window.location.href = `${apiBase}/api/auth/google?frontend=${encodeURIComponent(frontendOrigin)}`
   }
 
   const handleAbort = () => {
@@ -298,7 +301,7 @@ function LoginPage() {
 
   return (
     <div 
-        className="min-h-screen bg-black flex items-center justify-center overflow-hidden perspective-1000 selection:bg-red-500 selection:text-white"
+        className="min-h-screen bg-black flex items-center justify-center overflow-x-hidden overflow-y-auto px-4 py-8 sm:px-6 sm:py-12 perspective-1000 selection:bg-red-500 selection:text-white"
         onMouseMove={handleMove}
     >
       <WarpBackground warpState={warpState} />
@@ -312,7 +315,7 @@ function LoginPage() {
         initial={{ x: -100 }}
         animate={{ x: 0 }}
         whileHover={{ x: 10, scale: 1.05 }}
-        className="fixed top-8 left-0 z-50 group"
+        className="fixed top-5 left-4 z-50 group"
       >
         <div className="bg-zinc-900/90 border-r-4 border-yellow-500 text-white pl-8 pr-6 py-3 flex items-center gap-3 shadow-[0_0_20px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(220,38,38,0.5)] hover:border-red-600 transition-all duration-300">
             <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)]" />
@@ -338,32 +341,34 @@ function LoginPage() {
             { scale: 1, opacity: 1 }
         }
         transition={{ duration: warpState === 'idle' ? 0.5 : 1.5 }}
-        className="relative z-20 w-full max-w-md p-8"
+        className="relative z-20 w-full max-w-[480px] p-5 sm:p-6 md:p-7"
       >
-        <div className="absolute inset-0 border border-white/20 rounded-xl bg-black/40 backdrop-blur-md shadow-[0_0_50px_rgba(255,255,255,0.05)]" />
+        <div className="absolute inset-0 border border-white/20 rounded-2xl bg-black/45 backdrop-blur-lg shadow-[0_0_50px_rgba(255,255,255,0.05)]" />
         
         {/* CORNER ACCENTS */}
         <div className="absolute -top-2 -left-2 w-8 h-8 border-t-2 border-l-2 border-red-600" />
         <div className="absolute -bottom-2 -right-2 w-8 h-8 border-b-2 border-r-2 border-red-600" />
 
-        <div className="relative z-10 flex flex-col items-center">
-            
-            <div className="mb-10 relative">
-                <div className="absolute inset-0 bg-red-500 blur-2xl opacity-20 animate-pulse" />
-                <Zap size={50} className="text-white relative z-10" />
-            </div>
+        <div className="relative z-10 w-full flex flex-col items-center gap-5 sm:gap-6">
 
-            <h2 className="text-4xl font-black text-white tracking-tighter mb-2">
+          <div className="relative">
+                <div className="absolute inset-0 bg-red-500 blur-2xl opacity-20 animate-pulse" />
+            <Zap size={42} className="text-white relative z-10" />
+          </div>
+
+          <div className="w-full text-center space-y-2">
+            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-none">
                 <HackerText text={isSignup ? "SIGNUP_PROTOCOL" : "SYSTEM_LOGIN"} />
             </h2>
-            <p className="text-[10px] text-red-500 font-mono tracking-[0.5em] mb-6">
+            <p className="text-[10px] text-red-500 font-mono tracking-[0.28em]">
                 {isSignup ? 'NEW IDENTITY // CLASS 4' : 'RESTRICTED AREA // CLASS 4'}
             </p>
+          </div>
 
             {/* Google Button */}
             <button
               onClick={handleGoogleLogin}
-              className="w-full bg-white text-gray-900 hover:bg-gray-100 font-black text-xs uppercase tracking-widest py-4 rounded-xl mb-6 flex items-center justify-center gap-3 transition-all shadow-lg"
+              className="w-full h-12 bg-white text-gray-900 hover:bg-gray-100 font-black text-xs uppercase tracking-[0.14em] rounded-xl flex items-center justify-center gap-3 transition-all shadow-lg"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -375,17 +380,17 @@ function LoginPage() {
             </button>
 
             {/* Divider */}
-            <div className="flex items-center gap-4 w-full mb-6">
+            <div className="flex items-center gap-4 w-full">
               <div className="flex-1 h-px bg-white/10"></div>
               <span className="text-zinc-600 font-black text-xs uppercase tracking-widest">OR</span>
               <div className="flex-1 h-px bg-white/10"></div>
             </div>
 
-            <form onSubmit={handleSubmit} className="w-full space-y-6">
+            <form onSubmit={handleSubmit} className="w-full space-y-4">
                 
                 {isSignup && (
                   <div className="relative group">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={18} />
+                      <User className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={20} />
                       <input 
                           type="text" 
                           placeholder="FULL_NAME"
@@ -394,7 +399,7 @@ function LoginPage() {
                             setFormData({...formData, name: e.target.value})
                             setErrors({...errors, name: ''})
                           }}
-                          className={`w-full bg-white/5 border-l-2 ${errors.name ? 'border-red-500' : 'border-white/10'} p-4 pl-12 text-white placeholder-gray-600 outline-none focus:bg-white/10 focus:border-red-600 transition-all font-mono text-sm tracking-wider`}
+                                className={`w-full h-14 rounded-md bg-white/5 border-l-2 ${errors.name ? 'border-red-500' : 'border-white/10'} pl-14 pr-5 text-white placeholder-gray-600 outline-none focus:bg-white/10 focus:border-red-600 transition-all font-mono text-[15px] tracking-[0.13em]`}
                       />
                       {errors.name && (
                         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-red-500 text-[10px] mt-1 font-mono uppercase tracking-widest">{errors.name}</motion.p>
@@ -403,7 +408,7 @@ function LoginPage() {
                 )}
 
                 <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={18} />
+                  <User className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={20} />
                     <input 
                         type="email" 
                         placeholder="IDENTIFIER"
@@ -412,7 +417,7 @@ function LoginPage() {
                           setFormData({...formData, email: e.target.value})
                           setErrors({...errors, email: ''})
                         }}
-                        className={`w-full bg-white/5 border-l-2 ${errors.email ? 'border-red-500' : 'border-white/10'} p-4 pl-12 text-white placeholder-gray-600 outline-none focus:bg-white/10 focus:border-red-600 transition-all font-mono text-sm tracking-wider`}
+                        className={`w-full h-14 rounded-md bg-white/5 border-l-2 ${errors.email ? 'border-red-500' : 'border-white/10'} pl-14 pr-5 text-white placeholder-gray-600 outline-none focus:bg-white/10 focus:border-red-600 transition-all font-mono text-[15px] tracking-[0.13em]`}
                     />
                     {errors.email && (
                       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-red-500 text-[10px] mt-1 font-mono uppercase tracking-widest">{errors.email}</motion.p>
@@ -420,7 +425,7 @@ function LoginPage() {
                 </div>
 
                 <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={18} />
+                  <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={20} />
                     <input 
                         type="password" 
                         placeholder="SECURITY_KEY"
@@ -429,7 +434,7 @@ function LoginPage() {
                           setFormData({...formData, password: e.target.value})
                           setErrors({...errors, password: ''})
                         }}
-                        className={`w-full bg-white/5 border-l-2 ${errors.password ? 'border-red-500' : 'border-white/10'} p-4 pl-12 text-white placeholder-gray-600 outline-none focus:bg-white/10 focus:border-red-600 transition-all font-mono text-sm tracking-wider`}
+                        className={`w-full h-14 rounded-md bg-white/5 border-l-2 ${errors.password ? 'border-red-500' : 'border-white/10'} pl-14 pr-5 text-white placeholder-gray-600 outline-none focus:bg-white/10 focus:border-red-600 transition-all font-mono text-[15px] tracking-[0.13em]`}
                     />
                     {errors.password && (
                       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-red-500 text-[10px] mt-1 font-mono uppercase tracking-widest">{errors.password}</motion.p>
@@ -438,7 +443,7 @@ function LoginPage() {
 
                 {!isSignup && requiresTwoFactor && (
                   <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={18} />
+                    <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-white transition-colors" size={20} />
                     <input
                       type="text"
                       inputMode="numeric"
@@ -449,7 +454,7 @@ function LoginPage() {
                         setTwoFactorCode(e.target.value.replace(/\D/g, ''))
                         setErrors({ ...errors, twoFactor: '' })
                       }}
-                      className={`w-full bg-white/5 border-l-2 ${errors.twoFactor ? 'border-red-500' : 'border-white/10'} p-4 pl-12 text-white placeholder-gray-600 outline-none focus:bg-white/10 focus:border-red-600 transition-all font-mono text-sm tracking-wider`}
+                      className={`w-full h-14 rounded-md bg-white/5 border-l-2 ${errors.twoFactor ? 'border-red-500' : 'border-white/10'} pl-14 pr-5 text-white placeholder-gray-600 outline-none focus:bg-white/10 focus:border-red-600 transition-all font-mono text-[15px] tracking-[0.13em]`}
                     />
                     {errors.twoFactor && (
                       <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-red-500 text-[10px] mt-1 font-mono uppercase tracking-widest">{errors.twoFactor}</motion.p>
@@ -462,7 +467,7 @@ function LoginPage() {
                     disabled={loading}
                     whileHover={{ scale: loading ? 1 : 1.02 }}
                     whileTap={{ scale: loading ? 1 : 0.98 }}
-                    className="w-full bg-white text-black font-black py-5 mt-4 uppercase tracking-[0.3em] flex items-center justify-center gap-4 hover:bg-red-600 hover:text-white transition-all duration-300 relative group overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-14 bg-white text-black font-black mt-2 uppercase tracking-[0.2em] flex items-center justify-center gap-4 hover:bg-red-600 hover:text-white transition-all duration-300 relative group overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <span className="relative z-10 flex items-center gap-2">
                         {loading ? (
@@ -475,7 +480,7 @@ function LoginPage() {
                 </motion.button>
             </form>
 
-            <div className="mt-8 flex justify-between w-full text-[10px] text-gray-500 font-mono uppercase">
+            <div className="w-full pt-1 flex justify-between text-[10px] text-gray-500 font-mono uppercase">
                 <button 
                   onClick={toggleMode} 
                   className="hover:text-red-500 transition-colors"
@@ -483,41 +488,18 @@ function LoginPage() {
                   {isSignup ? '← BACK TO LOGIN' : 'CREATE_ACCOUNT'}
                 </button>
                 <button 
-                  onClick={async () => {
+                  onClick={() => {
                     setWarpState('forward')
-                    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-                    // Try login first, then signup if user doesn't exist
-                    try {
-                      let res = await fetch(`${API_URL}/auth/login`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: 'demo@fittracker.app', password: 'Demo1234!' })
-                      })
-                      let data = await res.json()
-                      if (!res.ok) {
-                        // Account doesn't exist, create it
-                        res = await fetch(`${API_URL}/auth/signup`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ name: 'Demo Athlete', email: 'demo@fittracker.app', password: 'Demo1234!' })
-                        })
-                        data = await res.json()
-                      }
-                      if (data.token) {
-                        localStorage.setItem('token', data.token)
-                        localStorage.setItem('user', JSON.stringify(data.user))
-                        setTimeout(() => navigate('/dashboard'), 500)
-                      } else {
-                        // Fallback if backend is down
-                        localStorage.setItem('token', 'demo-token-skip-auth')
-                        localStorage.setItem('user', JSON.stringify({ name: 'Demo User', email: 'demo@fittracker.app' }))
-                        setTimeout(() => navigate('/dashboard'), 500)
-                      }
-                    } catch {
-                      localStorage.setItem('token', 'demo-token-skip-auth')
-                      localStorage.setItem('user', JSON.stringify({ name: 'Demo User', email: 'demo@fittracker.app' }))
-                      setTimeout(() => navigate('/dashboard'), 500)
-                    }
+                    clearUserData()
+                    localStorage.setItem('token', 'demo-token-skip-auth')
+                    localStorage.setItem('user', JSON.stringify({
+                      id: 'demo-user',
+                      name: 'Demo User',
+                      email: 'demo@fittracker.app',
+                      profileData: {}
+                    }))
+                    toast.success('Entered demo mode')
+                    setTimeout(() => navigate('/dashboard'), 400)
                   }} 
                   className="hover:text-red-500 transition-colors"
                 >

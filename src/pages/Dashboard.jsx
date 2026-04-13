@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Dumbbell, Apple, TrendingUp, User, LogOut,
-  Target, Activity, BarChart3, Brain,
+  Target, Activity, BarChart3, Brain, Droplet,
   AlarmClock, ChevronRight, Sun, Moon
 } from 'lucide-react'
 import {
@@ -25,6 +25,7 @@ const QUICK_LINKS = [
   { icon: BarChart3,  label: 'PLAN',     sub: 'Workout Plan',   path: '/workout-plan', color: '#f4f4f5' },
   { icon: Activity,   label: 'BODY',     sub: 'Body Analysis',  path: '/body-analysis', color: '#d4d4d8' },
   { icon: Target,     label: 'BMI',      sub: 'Calculator',     path: '/calculator',   color: '#a1a1aa' },
+  { icon: Droplet,    label: 'WATER',    sub: 'Water Tracker',  path: '/water',        color: '#7dd3fc' },
   { icon: AlarmClock, label: 'TIMER',    sub: 'Rest Timer',     path: '/timer',        color: '#e4e4e7' },
   { icon: Dumbbell,   label: 'LIBRARY',  sub: 'Exercise DB',    path: '/exercises',    color: '#cbd5e1' },
   { icon: Brain,      label: 'AI',       sub: 'AI Trainer',     path: '/ai',           color: '#fafafa' },
@@ -186,6 +187,7 @@ function Dashboard() {
   const { isDark, toggleTheme } = useTheme()
   const [greeting, setGreeting] = useState('')
   const [time, setTime]       = useState(new Date())
+  const [quoteIdx, setQuoteIdx] = useState(0)
   const [themeName, setThemeName] = useState(() => localStorage.getItem(UI_THEME_KEY) || 'mint')
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
   const theme = UI_THEMES[themeName] || UI_THEMES.ice
@@ -213,11 +215,24 @@ function Dashboard() {
     return () => clearInterval(t)
   }, [])
 
+  useEffect(() => {
+    const quoteTimer = setInterval(() => {
+      setQuoteIdx((prev) => (prev + 1) % MOTIVATIONAL_QUOTES.length)
+    }, 7000)
+    return () => clearInterval(quoteTimer)
+  }, [])
+
   // ─── DATA ─────────────────────────────────────────────────────────────────
   const { data: userProfile } = useApi('/auth/me')
   const { data: workouts }    = useApi('/workouts')
   const { data: meals }       = useApi('/meals')
   const { data: progressLogs} = useApi('/progress')
+  const { data: waterLogs }   = useApi('/water')
+
+  const rawToken = localStorage.getItem('token')
+  const authToken = rawToken && rawToken !== 'null' && rawToken !== 'undefined' ? rawToken : null
+  const isDemoSession = authToken === 'demo-token-skip-auth'
+  const shouldUseLocalFallback = !authToken || isDemoSession
 
   const user    = useMemo(() => {
     if (userProfile) return userProfile
@@ -225,13 +240,15 @@ function Dashboard() {
   }, [userProfile])
 
   const profileAvatar = useMemo(() => {
-    const localProfile = (() => {
-      try {
-        return JSON.parse(localStorage.getItem('userProfile') || '{}')
-      } catch {
-        return {}
-      }
-    })()
+    const localProfile = shouldUseLocalFallback
+      ? (() => {
+          try {
+            return JSON.parse(localStorage.getItem('userProfile') || '{}')
+          } catch {
+            return {}
+          }
+        })()
+      : {}
 
     const fromData =
       user?.profileData?.avatar ||
@@ -251,7 +268,7 @@ function Dashboard() {
 
     const nameSeed = encodeURIComponent(user?.name || 'User')
     return `https://ui-avatars.com/api/?name=${nameSeed}&background=111827&color=f3f4f6&size=128`
-  }, [user])
+  }, [shouldUseLocalFallback, user])
 
   useEffect(() => {
     setAvatarLoadFailed(false)
@@ -276,6 +293,8 @@ function Dashboard() {
 
   const profile = useMemo(() => {
     const server = user?.profileData || {}
+    if (!shouldUseLocalFallback) return server
+
     return {
       ...server,
       weight: server.weight ?? localUserProfile.currentWeight ?? localUserProfile.weight,
@@ -284,11 +303,12 @@ function Dashboard() {
       activityLevel: server.activityLevel ?? localUserProfile.activityLevel,
       fitnessGoal: server.fitnessGoal ?? localUserProfile.fitnessGoal,
     }
-  }, [user, localUserProfile])
+  }, [user, localUserProfile, shouldUseLocalFallback])
   const bmi     = useMemo(() => calcBMI(profile.weight, profile.height), [profile.weight, profile.height])
   const todayStr = new Date().toISOString().split('T')[0]
   const apiWorkouts = useMemo(() => (Array.isArray(workouts) ? workouts : []), [workouts])
   const apiMeals = useMemo(() => (Array.isArray(meals) ? meals : []), [meals])
+  const apiWaterLogs = useMemo(() => (Array.isArray(waterLogs) ? waterLogs : []), [waterLogs])
   const localTodayLog = useMemo(() => {
     try {
       const parsed = JSON.parse(localStorage.getItem('todayLog') || '[]')
@@ -305,6 +325,30 @@ function Dashboard() {
       return []
     }
   }, [])
+
+  const localTodayWaterMl = useMemo(() => {
+    if (!shouldUseLocalFallback) return 0
+
+    const storedDate = toDayKey(localStorage.getItem('waterDate'))
+    if (storedDate !== todayStr) return 0
+
+    const localGlasses = Math.max(0, asNumber(localStorage.getItem('waterIntake')))
+    return localGlasses * 250
+  }, [shouldUseLocalFallback, todayStr])
+
+  const todayWaterRecord = useMemo(() => {
+    return apiWaterLogs.find((entry) => toDayKey(entry?.date || entry?.createdAt) === todayStr) || null
+  }, [apiWaterLogs, todayStr])
+
+  const todayWaterMl = useMemo(() => {
+    if (shouldUseLocalFallback) return localTodayWaterMl
+    return Math.max(0, asNumber(todayWaterRecord?.amount))
+  }, [shouldUseLocalFallback, localTodayWaterMl, todayWaterRecord])
+
+  const waterGoalMl = useMemo(() => {
+    if (shouldUseLocalFallback) return 2000
+    return Math.max(1, asNumber(todayWaterRecord?.goal, 2000))
+  }, [shouldUseLocalFallback, todayWaterRecord])
   const sourceWorkouts = useMemo(() => {
     const normalizedLocal = localWorkoutHistory.map((w) => ({
       ...w,
@@ -315,7 +359,10 @@ function Dashboard() {
       exercises: asNumber(w.exercises),
     }))
 
-    const merged = [...apiWorkouts, ...normalizedLocal]
+    const merged = shouldUseLocalFallback
+      ? [...apiWorkouts, ...normalizedLocal]
+      : [...apiWorkouts]
+
     const seen = new Set()
     return merged.filter((w) => {
       const k = `${w._id || w.id || ''}|${toDayKey(w.date || w.createdAt) || ''}|${asNumber(w.volume)}|${asNumber(w.calories)}`
@@ -323,10 +370,14 @@ function Dashboard() {
       seen.add(k)
       return true
     })
-  }, [apiWorkouts, localWorkoutHistory])
+  }, [apiWorkouts, localWorkoutHistory, shouldUseLocalFallback])
 
   // Today's calories + macros
   const todayMeals = useMemo(() => {
+    if (!shouldUseLocalFallback) {
+      return apiMeals.filter(m => toDayKey(m?.date || m?.createdAt) === todayStr)
+    }
+
     const apiToday = apiMeals.filter(m => toDayKey(m?.date || m?.createdAt) === todayStr)
     if (apiToday.length > 0) return apiToday
     return localTodayLog.map((m) => ({
@@ -335,11 +386,19 @@ function Dashboard() {
       calories: Number(m.calories) || 0,
       protein: Number(m.protein) || 0,
     }))
-  }, [apiMeals, localTodayLog, todayStr])
+  }, [apiMeals, localTodayLog, todayStr, shouldUseLocalFallback])
   const todayCalories = useMemo(() => todayMeals.reduce((s, m) => s + (m.calories || 0), 0), [todayMeals])
   const todayProtein  = useMemo(() => todayMeals.reduce((s, m) => s + (m.protein || 0), 0), [todayMeals])
-  const calorieGoal = parseInt(profile.calorieGoal || calorieData.goalCalories || calorieData.maintenanceCalories) || 2500
-  const proteinGoal = parseInt(profile.proteinGoal || calorieData.protein) || Math.round((parseFloat(profile.weight) || 70) * 2.2)
+  const calorieGoal = parseInt(
+    shouldUseLocalFallback
+      ? (profile.calorieGoal || calorieData.goalCalories || calorieData.maintenanceCalories)
+      : profile.calorieGoal
+  ) || 2500
+  const proteinGoal = parseInt(
+    shouldUseLocalFallback
+      ? (profile.proteinGoal || calorieData.protein)
+      : profile.proteinGoal
+  ) || Math.round((parseFloat(profile.weight) || 70) * 2.2)
 
   const workoutDaySet = useMemo(() => {
     const keys = sourceWorkouts
@@ -378,7 +437,10 @@ function Dashboard() {
       acc[key] = (acc[key] || 0) + (Number(m.calories) || 0)
       return acc
     }, {})
-    const localTodayCalories = localTodayLog.reduce((sum, m) => sum + (Number(m.calories) || 0), 0)
+    const localTodayCalories = shouldUseLocalFallback
+      ? localTodayLog.reduce((sum, m) => sum + (Number(m.calories) || 0), 0)
+      : 0
+
     const result = []
     for (let i = 6; i >= 0; i--) {
       const d = new Date(); d.setDate(d.getDate() - i)
@@ -386,13 +448,13 @@ function Dashboard() {
       const hasApiToday = Boolean(apiCalsByDay[ds])
       const cal = hasApiToday
         ? apiCalsByDay[ds]
-        : ds === todayStr
+        : shouldUseLocalFallback && ds === todayStr
           ? localTodayCalories
           : 0
       result.push({ date: d.toLocaleDateString('en-US', { weekday: 'short' }), calories: cal })
     }
     return result
-  }, [apiMeals, localTodayLog, todayStr])
+  }, [apiMeals, localTodayLog, todayStr, shouldUseLocalFallback])
 
   const calorieHistoryAvg = useMemo(() => {
     if (!calorieHistory.length) return 0
@@ -530,6 +592,7 @@ function Dashboard() {
 
   const caloriePct = safePercent(todayCalories, calorieGoal)
   const proteinPct = safePercent(todayProtein, proteinGoal)
+  const waterPct = safePercent(todayWaterMl, waterGoalMl)
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
@@ -551,13 +614,13 @@ function Dashboard() {
                     onClick={() => navigate(item.path)}
                     className="group w-full h-14 rounded-xl flex items-center justify-center relative"
                     style={{
-                      background: isActive ? 'rgba(255,43,71,0.16)' : 'rgba(255,255,255,0.01)',
-                      border: isActive ? '1px solid rgba(255,71,104,0.36)' : '1px solid rgba(255,255,255,0.04)'
+                      background: isActive ? 'rgba(0,0,0,0.52)' : 'rgba(255,255,255,0.01)',
+                      border: isActive ? '1px solid rgba(148,163,184,0.36)' : '1px solid rgba(255,255,255,0.04)'
                     }}
                     title={item.label}
                   >
-                    <item.icon size={19} style={{ color: isActive ? '#ff4b68' : '#81889a' }} />
-                    {isActive && <span className="absolute -right-[9px] h-7 w-[3px] rounded-full" style={{ background: '#ff4b68' }} />}
+                    <item.icon size={19} style={{ color: isActive ? '#ffffff' : '#81889a' }} />
+                    {isActive && <span className="absolute -right-[9px] h-7 w-[3px] rounded-full" style={{ background: '#000000' }} />}
                     <span className="pointer-events-none absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-100 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150 z-20"
                       style={{ background: 'rgba(9,12,18,0.94)', border: '1px solid rgba(255,255,255,0.14)', boxShadow: '0 8px 18px rgba(0,0,0,0.4)' }}>
                       {item.label}
@@ -616,10 +679,10 @@ function Dashboard() {
                   onClick={() => navigate('/ai')}
                   className="h-9 px-4 rounded-full text-[10px] font-bold uppercase tracking-[0.12em] flex items-center gap-1.5"
                   style={{
-                    background: 'linear-gradient(120deg, #ff4b68 0%, #ff2b47 60%, #db1537 100%)',
+                    background: 'linear-gradient(120deg, #2f2f2f 0%, #171717 60%, #000000 100%)',
                     color: '#fff',
-                    border: '1px solid rgba(255,110,138,0.55)',
-                    boxShadow: '0 10px 24px rgba(255,43,71,0.34), inset 0 1px 0 rgba(255,255,255,0.2)'
+                    border: '1px solid rgba(148,163,184,0.38)',
+                    boxShadow: '0 10px 24px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.12)'
                   }}
                 >
                   <Brain size={13} />
@@ -645,44 +708,112 @@ function Dashboard() {
                 <div
                   className="absolute inset-0"
                   style={{
-                    backgroundImage: "url('https://images.unsplash.com/photo-1599058917212-d750089bc07e?auto=format&fit=crop&w=2200&q=80')",
+                    background: 'linear-gradient(135deg, #090909 0%, #0f141f 36%, #0b0d11 100%)'
+                  }}
+                />
+                <div
+                  className="absolute -inset-16"
+                  style={{
+                    backgroundImage: "url('https://images.pexels.com/photos/1552242/pexels-photo-1552242.jpeg?auto=compress&cs=tinysrgb&w=2200')",
                     backgroundSize: 'cover',
-                    backgroundPosition: 'center 30%'
+                    backgroundPosition: 'center 52%',
+                    transform: 'perspective(1500px) rotateX(8deg) rotateY(-8deg) scale(1.2)',
+                    transformOrigin: 'center 42%',
+                    filter: 'saturate(1.28) contrast(1.2) brightness(0.66)'
+                  }}
+                />
+                <div
+                  className="absolute -inset-12"
+                  style={{
+                    backgroundImage: "url('https://images.pexels.com/photos/841130/pexels-photo-841130.jpeg?auto=compress&cs=tinysrgb&w=2200')",
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center 48%',
+                    transform: 'perspective(1200px) rotateX(2deg) rotateY(4deg) scale(1.08)',
+                    opacity: 0.3,
+                    mixBlendMode: 'screen'
                   }}
                 />
                 <div
                   className="absolute inset-0"
                   style={{
-                    background: 'linear-gradient(180deg, rgba(4,6,12,0.72) 0%, rgba(4,6,12,0.52) 44%, rgba(4,6,12,0.78) 100%)'
+                    background: 'linear-gradient(116deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.32) 30%, rgba(8,12,18,0.66) 58%, rgba(6,7,10,0.9) 100%)'
                   }}
                 />
                 <div
                   className="absolute inset-0"
                   style={{
-                    background: 'radial-gradient(90% 70% at 50% 30%, rgba(6,10,18,0.22) 0%, rgba(6,10,18,0.62) 74%, rgba(6,10,18,0.86) 100%)'
+                    backgroundImage: 'repeating-linear-gradient(122deg, rgba(255,255,255,0.16) 0 2px, transparent 2px 17px)',
+                    opacity: 0.3
                   }}
                 />
-                <div className="absolute inset-0" style={{ background: theme.glow }} />
+                <div
+                  className="absolute -left-24 top-10 w-72 h-72 rounded-[28px] border-[18px]"
+                  style={{
+                    borderColor: 'rgba(0,0,0,0.9)',
+                    boxShadow: '0 0 68px rgba(0,0,0,0.42)',
+                    transform: 'rotate(11deg)'
+                  }}
+                />
+                <div
+                  className="absolute -right-16 bottom-8 w-64 h-64 rounded-[24px] border-[14px]"
+                  style={{
+                    borderColor: 'rgba(0,209,255,0.84)',
+                    boxShadow: '0 0 58px rgba(0,209,255,0.3)',
+                    transform: 'rotate(-7deg)'
+                  }}
+                />
+                <div
+                  className="absolute inset-x-0 bottom-0 h-32"
+                  style={{
+                    background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.75) 88%)'
+                  }}
+                />
+                <div className="absolute inset-0" style={{ background: theme.glow, opacity: 0.8 }} />
 
                 <div className="relative z-10 h-full flex items-center justify-center px-6 lg:px-10 py-8">
-                  <div className="text-center max-w-3xl">
-                    <p className="text-4xl sm:text-5xl lg:text-6xl font-light leading-tight text-white mb-3">AI Fitness Tracker</p>
-                    <p className="text-zinc-200 text-base sm:text-lg mb-8">Track workouts, meals, water, and progress in one dashboard</p>
-                    <div className="flex items-center justify-center gap-3 flex-wrap">
-                    <button
-                      onClick={() => navigate('/workout-plan')}
-                      className="px-8 py-3 rounded-full text-xs font-bold uppercase tracking-[0.12em]"
-                      style={{ background: 'linear-gradient(90deg, #ff405a 0%, #ff2b47 100%)', color: '#ffffff', boxShadow: '0 10px 28px rgba(255,64,90,0.34)' }}
-                    >
-                      Select Your Plan
-                    </button>
-                    <button
-                      onClick={() => navigate('/exercises')}
-                      className="px-8 py-3 rounded-full text-xs font-bold uppercase tracking-[0.12em]"
-                      style={{ background: 'rgba(255,255,255,0.12)', color: '#ffffff', border: `1px solid ${matte.edge}` }}
-                    >
-                      Exercise Videos
-                    </button>
+                  <div className="w-full max-w-5xl">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 border-2 border-white/80 bg-black/45 mb-5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#000000]" />
+                      <span className="text-[11px] tracking-[0.2em] font-black text-white uppercase" style={{ fontFamily: 'JetBrains Mono, monospace' }}>Brutal Mode</span>
+                    </div>
+
+                    <div className="grid lg:grid-cols-[1.45fr,0.8fr] gap-7 items-end">
+                      <div className="text-left">
+                        <p className="text-4xl sm:text-5xl lg:text-7xl font-black leading-[0.95] text-white uppercase mb-4">Forge Your Strongest Self</p>
+                        <p className="text-zinc-100 text-sm sm:text-base lg:text-lg max-w-2xl mb-4">Smash through training, meals, hydration, and progress with a dashboard designed like a control room.</p>
+                        <p key={quoteIdx} className="text-zinc-100/95 italic text-sm sm:text-base mb-8 border-l-4 pl-4" style={{ borderColor: 'rgba(0,0,0,0.95)' }}>
+                          "{MOTIVATIONAL_QUOTES[quoteIdx]}"
+                        </p>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <button
+                            onClick={() => navigate('/workout-plan')}
+                            className="px-8 py-3 text-xs font-black uppercase tracking-[0.14em] rounded-md"
+                            style={{ background: 'linear-gradient(90deg, #232323 0%, #000000 100%)', color: '#ffffff', boxShadow: '0 12px 30px rgba(0,0,0,0.45)' }}
+                          >
+                            Select Your Plan
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="hidden lg:block">
+                        <div className="border-2 border-white/75 bg-black/45 p-5 rounded-xl backdrop-blur-[1px]">
+                          <p className="text-[10px] tracking-[0.24em] uppercase text-zinc-300 mb-4" style={{ fontFamily: 'JetBrains Mono, monospace' }}>Today Snapshot</p>
+                          <div className="space-y-4">
+                            <div className="flex items-end justify-between border-b border-white/20 pb-2">
+                              <span className="text-zinc-300 text-xs uppercase tracking-[0.14em]">Streak</span>
+                              <span className="text-white text-2xl font-black">{streak}d</span>
+                            </div>
+                            <div className="flex items-end justify-between border-b border-white/20 pb-2">
+                              <span className="text-zinc-300 text-xs uppercase tracking-[0.14em]">Calories</span>
+                              <span className="text-white text-2xl font-black">{todayCalories}</span>
+                            </div>
+                            <div className="flex items-end justify-between">
+                              <span className="text-zinc-300 text-xs uppercase tracking-[0.14em]">Protein</span>
+                              <span className="text-white text-2xl font-black">{todayProtein}g</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -751,7 +882,7 @@ function Dashboard() {
                 <div className="p-5">
                   <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500 mb-3">Quick Access</p>
                   <div className="space-y-2 mb-3">
-                    {QUICK_LINKS.slice(0, 5).map((link) => (
+                    {QUICK_LINKS.slice(0, 6).map((link) => (
                       <button key={link.path} onClick={() => navigate(link.path)} className="w-full flex items-center justify-between p-2 rounded-md hover:bg-white/5">
                         <span className="text-xs text-zinc-300">{link.sub}</span>
                         <ChevronRight size={14} className="text-zinc-500" />
@@ -798,10 +929,11 @@ function Dashboard() {
                   <div className="mb-2">
                     <SectionLabel color={matte.textSoft}>Live Rings</SectionLabel>
                   </div>
-                  <div className="flex-1 flex items-center justify-between gap-2">
-                    <RingProgress pct={caloriePct} size={86} color="#22c55e" label="CAL" value={`${caloriePct}%`} />
-                    <RingProgress pct={proteinPct} size={86} color="#f59e0b" label="PRO" value={`${proteinPct}%`} />
-                    <RingProgress pct={Math.min(100, streak * 10)} size={86} color={theme.accent} label="STREAK" value={`${streak}D`} />
+                  <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-2 place-items-center">
+                    <RingProgress pct={caloriePct} size={74} color="#22c55e" label="CAL" value={`${caloriePct}%`} />
+                    <RingProgress pct={proteinPct} size={74} color="#f59e0b" label="PRO" value={`${proteinPct}%`} />
+                    <RingProgress pct={waterPct} size={74} color="#38bdf8" label="WATER" value={`${waterPct}%`} />
+                    <RingProgress pct={Math.min(100, streak * 10)} size={74} color={theme.accent} label="STREAK" value={`${streak}D`} />
                   </div>
                 </div>
 

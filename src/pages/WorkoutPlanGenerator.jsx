@@ -183,44 +183,119 @@ const normalizeAIPlan = (rawPlan, formData) => {
   }
 }
 
+const toSetRange = (value) => {
+  const match = String(value || '').match(/(\d+)(?:\s*-\s*(\d+))?/)
+  if (!match) return [3, 3]
+  const min = Number(match[1])
+  const max = Number(match[2] || match[1])
+  return [min, max]
+}
+
+const formatSetRange = (min, max) => {
+  return min === max ? `${min}` : `${min}-${max}`
+}
+
+const tuneFallbackByExperience = (exercises, experience, goal) => {
+  return exercises.map((exercise) => {
+    const next = { ...exercise }
+    const [setMin, setMax] = toSetRange(next.sets)
+
+    if (experience === 'beginner') {
+      const min = Math.max(2, setMin - 1)
+      const max = Math.max(min, Math.min(3, setMax))
+      next.sets = formatSetRange(min, max)
+      next.notes = `${text(next.notes)}${next.notes ? ' | ' : ''}Beginner pace and strict form`
+      if (goal === 'weight_loss' && !/sec|m/i.test(String(next.reps))) {
+        next.reps = '10-15'
+      }
+    } else if (experience === 'advanced') {
+      const min = Math.min(6, setMin + 1)
+      const max = Math.min(6, setMax + 1)
+      next.sets = formatSetRange(min, Math.max(min, max))
+      next.notes = `${text(next.notes)}${next.notes ? ' | ' : ''}Advanced intensity block`
+      if (goal === 'muscle_gain' && !/sec|m/i.test(String(next.reps))) {
+        next.reps = '6-10'
+      }
+    }
+
+    return next
+  })
+}
+
 const getFallbackPlan = (formData) => {
   const equipment = formData.equipment || 'full_gym'
   const goal = formData.goal === 'muscle_gain' ? 'Muscle' : 'Fat Loss'
 
   const library = {
-    full_gym: [
-      { name: 'Barbell Squat', sets: '4', reps: '6-10', notes: 'Brace core before each rep' },
-      { name: 'Bench Press', sets: '4', reps: '6-10', notes: 'Controlled eccentric' },
-      { name: 'Lat Pulldown', sets: '3', reps: '10-12', notes: 'Pull elbows down' },
-      { name: 'Romanian Deadlift', sets: '3', reps: '8-10', notes: 'Hip hinge, neutral spine' },
-      { name: 'Cable Row', sets: '3', reps: '10-12', notes: 'Squeeze shoulder blades' },
-      { name: 'Leg Press', sets: '3', reps: '10-15', notes: 'Full range, no lockout' },
-      { name: 'Overhead Press', sets: '3', reps: '8-10', notes: 'Ribcage down' },
-      { name: 'Farmer Carry', sets: '4', reps: '30m', notes: 'Stay tall and steady' },
-    ],
-    home: [
-      { name: 'Goblet Squat', sets: '4', reps: '10-15', notes: 'Dumbbell at chest' },
-      { name: 'Dumbbell Floor Press', sets: '4', reps: '8-12', notes: 'Pause at bottom' },
-      { name: 'Single-arm Row', sets: '4', reps: '10-12', notes: 'Each side' },
-      { name: 'Split Squat', sets: '3', reps: '10 each leg', notes: 'Rear foot elevated if possible' },
-      { name: 'Shoulder Press', sets: '3', reps: '10-12', notes: 'Seated or standing' },
-      { name: 'RDL with Dumbbells', sets: '3', reps: '10-12', notes: 'Hinge through hips' },
-      { name: 'Plank', sets: '3', reps: '40 sec', notes: 'Breathe through braced core' },
-      { name: 'Mountain Climbers', sets: '3', reps: '30 sec', notes: 'Steady pace' },
-    ],
-    bodyweight: [
-      { name: 'Air Squat', sets: '4', reps: '15-20', notes: 'Sit back and down' },
-      { name: 'Push-up', sets: '4', reps: '10-20', notes: 'Hands under shoulders' },
-      { name: 'Reverse Lunge', sets: '3', reps: '12 each leg', notes: 'Tall torso' },
-      { name: 'Pike Push-up', sets: '3', reps: '8-12', notes: 'Focus shoulder drive' },
-      { name: 'Glute Bridge', sets: '3', reps: '20', notes: 'Squeeze at top' },
-      { name: 'Burpee', sets: '3', reps: '8-12', notes: 'Smooth pacing' },
-      { name: 'Hollow Hold', sets: '3', reps: '20-30 sec', notes: 'Lower back pressed down' },
-      { name: 'Plank Jack', sets: '3', reps: '20', notes: 'Keep hips stable' },
-    ],
+    full_gym: {
+      muscle_gain: [
+        { name: 'Barbell Squat', sets: '4', reps: '6-10', notes: 'Brace core before each rep' },
+        { name: 'Bench Press', sets: '4', reps: '6-10', notes: 'Controlled eccentric' },
+        { name: 'Lat Pulldown', sets: '3', reps: '10-12', notes: 'Pull elbows down' },
+        { name: 'Romanian Deadlift', sets: '3', reps: '8-10', notes: 'Hip hinge, neutral spine' },
+        { name: 'Cable Row', sets: '3', reps: '10-12', notes: 'Squeeze shoulder blades' },
+        { name: 'Overhead Press', sets: '3', reps: '8-10', notes: 'Ribcage down' },
+      ],
+      weight_loss: [
+        { name: 'Kettlebell Swing', sets: '4', reps: '15-20', notes: 'Explosive hip drive' },
+        { name: 'Walking Lunge', sets: '3', reps: '12 each leg', notes: 'Keep chest tall' },
+        { name: 'Incline Dumbbell Press', sets: '3', reps: '10-12', notes: 'No lockout rush' },
+        { name: 'TRX Row', sets: '3', reps: '12-15', notes: 'Control tempo' },
+        { name: 'Rower Sprint', sets: '5', reps: '30 sec', notes: 'High output intervals' },
+        { name: 'Battle Rope Slams', sets: '4', reps: '25 sec', notes: 'Explosive rhythm' },
+      ],
+    },
+    home: {
+      muscle_gain: [
+        { name: 'Goblet Squat', sets: '4', reps: '10-15', notes: 'Dumbbell at chest' },
+        { name: 'Dumbbell Floor Press', sets: '4', reps: '8-12', notes: 'Pause at bottom' },
+        { name: 'Single-arm Row', sets: '4', reps: '10-12', notes: 'Each side' },
+        { name: 'Split Squat', sets: '3', reps: '10 each leg', notes: 'Rear foot elevated if possible' },
+        { name: 'Shoulder Press', sets: '3', reps: '10-12', notes: 'Seated or standing' },
+        { name: 'RDL with Dumbbells', sets: '3', reps: '10-12', notes: 'Hinge through hips' },
+      ],
+      weight_loss: [
+        { name: 'Dumbbell Thruster', sets: '4', reps: '12-15', notes: 'Squat into press' },
+        { name: 'Alternating Reverse Lunge', sets: '3', reps: '14 each leg', notes: 'Steady pace' },
+        { name: 'Renegade Row', sets: '3', reps: '10-12', notes: 'Keep hips square' },
+        { name: 'Mountain Climbers', sets: '4', reps: '30 sec', notes: 'Fast and controlled' },
+        { name: 'Jump Rope', sets: '5', reps: '45 sec', notes: 'Short rest between rounds' },
+        { name: 'Plank', sets: '3', reps: '45 sec', notes: 'Neutral spine' },
+      ],
+    },
+    bodyweight: {
+      muscle_gain: [
+        { name: 'Tempo Air Squat', sets: '4', reps: '15-20', notes: '3-second eccentric' },
+        { name: 'Push-up', sets: '4', reps: '10-20', notes: 'Hands under shoulders' },
+        { name: 'Reverse Lunge', sets: '3', reps: '12 each leg', notes: 'Tall torso' },
+        { name: 'Pike Push-up', sets: '3', reps: '8-12', notes: 'Focus shoulder drive' },
+        { name: 'Glute Bridge', sets: '3', reps: '20', notes: 'Squeeze at top' },
+        { name: 'Hollow Hold', sets: '3', reps: '20-30 sec', notes: 'Lower back pressed down' },
+      ],
+      weight_loss: [
+        { name: 'Burpee', sets: '4', reps: '10-15', notes: 'Smooth pacing' },
+        { name: 'Jump Squat', sets: '4', reps: '12-16', notes: 'Soft landing' },
+        { name: 'High Knees', sets: '4', reps: '30 sec', notes: 'Drive knees up' },
+        { name: 'Plank Jack', sets: '3', reps: '20', notes: 'Keep hips stable' },
+        { name: 'Skater Hops', sets: '3', reps: '16 each side', notes: 'Explosive lateral push' },
+        { name: 'Mountain Climbers', sets: '4', reps: '30 sec', notes: 'Steady breathing' },
+      ],
+    },
   }
 
-  const exercises = library[equipment] || library.full_gym
+  const goalKey = formData.goal === 'weight_loss' ? 'weight_loss' : 'muscle_gain'
+  const base = library[equipment]?.[goalKey] || library.full_gym.muscle_gain
+  const exercises = tuneFallbackByExperience(base, formData.experience, goalKey)
+
+  if (goalKey === 'weight_loss') {
+    exercises.push(
+      equipment === 'full_gym'
+        ? { name: 'Assault Bike Intervals', sets: '6', reps: '20 sec on / 40 sec off', notes: 'All-out effort on work phase' }
+        : equipment === 'home'
+          ? { name: 'Jump Rope Intervals', sets: '6', reps: '45 sec on / 15 sec off', notes: 'Maintain cadence' }
+          : { name: 'EMOM Conditioning', sets: '10', reps: '20 sec burpees + 40 sec march', notes: 'Repeat each minute' }
+    )
+  }
 
   return {
     name: `${formData.daysPerWeek}-Day ${goal} Plan`,

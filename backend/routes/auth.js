@@ -9,7 +9,30 @@ const qrcode = require('qrcode')
 const User = require('../models/User')
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this-in-production'
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+const DEFAULT_FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+const ALLOWED_FRONTEND_ORIGINS = Array.from(new Set([
+  ...((process.env.CORS_ORIGINS || '').split(',').map(origin => origin.trim()).filter(Boolean)),
+  DEFAULT_FRONTEND_URL,
+]))
+
+function normalizeOrigin(urlString) {
+  try {
+    const url = new URL(urlString)
+    return `${url.protocol}//${url.host}`
+  } catch {
+    return null
+  }
+}
+
+function resolveFrontendUrl(candidate) {
+  if (typeof candidate === 'string' && candidate.trim()) {
+    const normalized = normalizeOrigin(candidate.trim())
+    if (normalized && ALLOWED_FRONTEND_ORIGINS.includes(normalized)) {
+      return normalized
+    }
+  }
+  return DEFAULT_FRONTEND_URL
+}
 
 const auth = (req, res, next) => {
   try {
@@ -127,9 +150,15 @@ router.post('/login', async (req, res) => {
 })
 
 // GOOGLE AUTH - Initiate
-router.get('/google',
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-)
+router.get('/google', (req, res, next) => {
+  const frontend = typeof req.query.frontend === 'string' ? req.query.frontend : ''
+  const redirectTarget = resolveFrontendUrl(frontend)
+
+  passport.authenticate('google', {
+    scope: ['profile', 'email'],
+    state: redirectTarget,
+  })(req, res, next)
+})
 
 // GOOGLE AUTH - Callback
 router.get('/google/callback',
@@ -137,18 +166,24 @@ router.get('/google/callback',
   (req, res) => {
     try {
       const token = jwt.sign({ userId: req.user._id }, JWT_SECRET, { expiresIn: '7d' })
-      
-      // Redirect to frontend with token
-      res.redirect(`${FRONTEND_URL}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify({
+      const frontendUrl = resolveFrontendUrl(req.query?.state)
+      const redirectUser = {
         id: req.user._id,
         name: req.user.name,
         email: req.user.email,
-        profileData: req.user.profileData || {},
         twoFactorEnabled: req.user.twoFactorEnabled || false,
-      }))}`)
+      }
+      const params = new URLSearchParams({
+        token,
+        user: JSON.stringify(redirectUser),
+      })
+      
+      // Redirect to frontend with token
+      res.redirect(`${frontendUrl}/auth/callback?${params.toString()}`)
     } catch (error) {
       console.error('Google callback error:', error)
-      res.redirect(`${FRONTEND_URL}/login?error=google_auth_failed`)
+      const frontendUrl = resolveFrontendUrl(req.query?.state)
+      res.redirect(`${frontendUrl}/login?error=google_auth_failed`)
     }
   }
 )

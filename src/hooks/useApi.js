@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const DEMO_TOKEN = 'demo-token-skip-auth'
 
 const getToken = () => {
   const t = localStorage.getItem('token')
-  return t && t !== 'null' && t !== 'undefined' ? t : null
+  return t && t !== 'null' && t !== 'undefined' && t !== DEMO_TOKEN ? t : null
 }
 
 export function useApi(endpoint, { skip = false } = {}) {

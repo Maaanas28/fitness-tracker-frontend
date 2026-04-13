@@ -13,7 +13,12 @@ const AuthCallback = () => {
 
     if (token && userRaw) {
       try {
-        const user = JSON.parse(decodeURIComponent(userRaw))
+        let user
+        try {
+          user = JSON.parse(userRaw)
+        } catch {
+          user = JSON.parse(decodeURIComponent(userRaw))
+        }
         clearUserData()
         localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(user))

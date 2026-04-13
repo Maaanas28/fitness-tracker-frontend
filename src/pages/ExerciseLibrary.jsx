@@ -59,8 +59,10 @@ function ExerciseLibrary() {
 
   // Flatten all exercises for global search
   const allExercises = Object.values(EXERCISE_DATA).flat();
-  const allEquipment = [...new Set(allExercises.map(ex => ex.equipment))]
+  const allEquipment = [...new Set(allExercises.map(ex => ex.equipment))].sort((a, b) => a.localeCompare(b))
   const allDifficulties = ['Beginner', 'Intermediate', 'Advanced']
+
+  const normalizeTag = (value) => String(value || '').trim().toLowerCase()
 
   const toggleFavorite = (exerciseId) => {
     setFavorites(prev => {
@@ -130,10 +132,12 @@ function ExerciseLibrary() {
   }
 
   const filteredExercises = baseList.filter(exercise => {
+    const difficultyFilters = selectedDifficulty.map(normalizeTag)
+    const equipmentFilters = selectedEquipment.map(normalizeTag)
     const matchesSearch = exercise.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           exercise.description.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesDifficulty = selectedDifficulty.length === 0 || selectedDifficulty.includes(exercise.difficulty)
-    const matchesEquipment = selectedEquipment.length === 0 || selectedEquipment.includes(exercise.equipment)
+    const matchesDifficulty = difficultyFilters.length === 0 || difficultyFilters.includes(normalizeTag(exercise.difficulty))
+    const matchesEquipment = equipmentFilters.length === 0 || equipmentFilters.includes(normalizeTag(exercise.equipment))
     return matchesSearch && matchesDifficulty && matchesEquipment
   })
 
@@ -153,11 +157,33 @@ function ExerciseLibrary() {
   }
 
   const toggleDifficulty = (difficulty) => {
-    setSelectedDifficulty(prev => prev.includes(difficulty) ? prev.filter(d => d !== difficulty) : [...prev, difficulty])
+    const normalized = normalizeTag(difficulty)
+    setSelectedDifficulty(prev => {
+      const exists = prev.some(d => normalizeTag(d) === normalized)
+      return exists ? prev.filter(d => normalizeTag(d) !== normalized) : [...prev, difficulty]
+    })
   }
 
   const toggleEquipment = (equipment) => {
-    setSelectedEquipment(prev => prev.includes(equipment) ? prev.filter(e => e !== equipment) : [...prev, equipment])
+    const normalized = normalizeTag(equipment)
+    setSelectedEquipment(prev => {
+      const exists = prev.some(e => normalizeTag(e) === normalized)
+      return exists ? prev.filter(e => normalizeTag(e) !== normalized) : [...prev, equipment]
+    })
+  }
+
+  const applyDifficultyTag = (difficulty) => {
+    const normalized = normalizeTag(difficulty)
+    const isOnlySelected = selectedDifficulty.length === 1 && normalizeTag(selectedDifficulty[0]) === normalized
+    setSelectedDifficulty(isOnlySelected ? [] : [difficulty])
+    if (showOnlyFavorites) setShowOnlyFavorites(false)
+  }
+
+  const applyEquipmentTag = (equipment) => {
+    const normalized = normalizeTag(equipment)
+    const isOnlySelected = selectedEquipment.length === 1 && normalizeTag(selectedEquipment[0]) === normalized
+    setSelectedEquipment(isOnlySelected ? [] : [equipment])
+    if (showOnlyFavorites) setShowOnlyFavorites(false)
   }
 
   const getDifficultyColor = (difficulty) => {
@@ -177,23 +203,23 @@ function ExerciseLibrary() {
 
   return (
     <div
-      className="relative min-h-screen overflow-x-hidden text-slate-100 selection:bg-cyan-300 selection:text-slate-950"
-      style={{ background: 'radial-gradient(160% 120% at 16% 0%, #3c1f67 0%, #121c3a 42%, #070b18 100%)' }}
+      className="relative min-h-screen overflow-x-hidden text-slate-100 selection:bg-amber-300 selection:text-slate-950"
+      style={{ background: 'radial-gradient(160% 120% at 16% 0%, #3b2a17 0%, #12161f 42%, #070a10 100%)' }}
     >
       <div
         className="pointer-events-none absolute inset-0 opacity-40"
         style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px)',
           backgroundSize: '42px 42px',
           maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.48), rgba(0,0,0,1))'
         }}
       />
-      <div className="pointer-events-none absolute -left-20 top-10 h-64 w-64 rounded-full blur-3xl" style={{ background: 'rgba(56,189,248,0.18)' }} />
-      <div className="pointer-events-none absolute right-0 top-36 h-72 w-72 rounded-full blur-3xl" style={{ background: 'rgba(217,70,239,0.18)' }} />
+      <div className="pointer-events-none absolute -left-20 top-10 h-64 w-64 rounded-full blur-3xl" style={{ background: 'rgba(249,115,22,0.2)' }} />
+      <div className="pointer-events-none absolute right-0 top-36 h-72 w-72 rounded-full blur-3xl" style={{ background: 'rgba(45,212,191,0.16)' }} />
 
       <motion.header
         className="sticky top-0 z-50 border-b backdrop-blur-2xl"
-        style={{ borderColor: 'rgba(226,232,240,0.16)', background: 'linear-gradient(92deg, rgba(8,14,32,0.9) 0%, rgba(29,14,46,0.88) 52%, rgba(6,12,28,0.9) 100%)' }}
+        style={{ borderColor: 'rgba(226,232,240,0.16)', background: 'linear-gradient(92deg, rgba(13,18,26,0.92) 0%, rgba(24,17,12,0.9) 52%, rgba(9,14,20,0.92) 100%)' }}
         initial={{ y: -40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
       >
@@ -209,7 +235,7 @@ function ExerciseLibrary() {
               <ArrowLeft size={20} className="text-slate-100 transition-transform group-hover:-translate-x-1" />
             </motion.button>
             <div>
-              <p className="text-[10px] uppercase tracking-[0.32em] text-cyan-200/80">Movement Archive</p>
+              <p className="text-[10px] uppercase tracking-[0.32em] text-amber-200/80">Movement Archive</p>
               <h1
                 className="text-3xl leading-none tracking-tight text-white"
                 style={{ fontFamily: "'Bebas Neue', 'Space Grotesk', sans-serif" }}
@@ -225,7 +251,7 @@ function ExerciseLibrary() {
                 onClick={getAIRecommendations}
                 disabled={isLoadingAI}
                 className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em]"
-                style={{ borderColor: 'rgba(196,181,253,0.55)', background: 'rgba(109,40,217,0.24)', color: '#e9d5ff' }}
+                style={{ borderColor: 'rgba(251,191,36,0.55)', background: 'rgba(217,119,6,0.2)', color: '#fde68a' }}
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.97 }}
                 title="Get AI recommendations"
@@ -259,7 +285,7 @@ function ExerciseLibrary() {
             <motion.button
               onClick={() => setShowFilters(!showFilters)}
               className="rounded-xl border p-2.5"
-              style={{ borderColor: 'rgba(56,189,248,0.5)', background: 'rgba(6,182,212,0.18)', color: '#a5f3fc' }}
+              style={{ borderColor: 'rgba(251,191,36,0.5)', background: 'rgba(245,158,11,0.16)', color: '#fde68a' }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               title="Open filters"
@@ -284,17 +310,17 @@ function ExerciseLibrary() {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 24, opacity: 0, scale: 0.96 }}
               className="relative w-full max-w-2xl overflow-hidden rounded-[30px] border p-6 sm:p-8"
-              style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(17,24,39,0.94) 100%)' }}
+              style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'linear-gradient(160deg, rgba(16,20,28,0.95) 0%, rgba(11,14,20,0.96) 100%)' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="pointer-events-none absolute -top-24 right-[-20px] h-52 w-52 rounded-full blur-3xl" style={{ background: 'rgba(14,165,233,0.2)' }} />
+              <div className="pointer-events-none absolute -top-24 right-[-20px] h-52 w-52 rounded-full blur-3xl" style={{ background: 'rgba(245,158,11,0.18)' }} />
               <button onClick={() => setShowFilters(false)} className="absolute right-5 top-5 text-slate-400 transition-colors hover:text-white">
                 <X size={22} />
               </button>
 
               <div className="relative z-10 space-y-8">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-200">Refine Results</p>
+                  <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200">Refine Results</p>
                   <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                     Filter Protocols
                   </h2>
@@ -310,9 +336,9 @@ function ExerciseLibrary() {
                           onClick={() => toggleDifficulty(d)}
                           className="rounded-xl border px-4 py-3 text-xs font-semibold uppercase tracking-[0.14em] transition-all"
                           style={{
-                            borderColor: selectedDifficulty.includes(d) ? 'rgba(34,211,238,0.7)' : 'rgba(148,163,184,0.3)',
-                            background: selectedDifficulty.includes(d) ? 'rgba(34,211,238,0.18)' : 'rgba(15,23,42,0.52)',
-                            color: selectedDifficulty.includes(d) ? '#a5f3fc' : '#cbd5e1'
+                            borderColor: selectedDifficulty.includes(d) ? 'rgba(251,191,36,0.7)' : 'rgba(148,163,184,0.3)',
+                            background: selectedDifficulty.includes(d) ? 'rgba(245,158,11,0.16)' : 'rgba(15,23,42,0.52)',
+                            color: selectedDifficulty.includes(d) ? '#fde68a' : '#cbd5e1'
                           }}
                         >
                           {d}
@@ -330,9 +356,9 @@ function ExerciseLibrary() {
                           onClick={() => toggleEquipment(e)}
                           className="rounded-xl border px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.12em] transition-all"
                           style={{
-                            borderColor: selectedEquipment.includes(e) ? 'rgba(196,181,253,0.7)' : 'rgba(148,163,184,0.3)',
-                            background: selectedEquipment.includes(e) ? 'rgba(109,40,217,0.2)' : 'rgba(15,23,42,0.52)',
-                            color: selectedEquipment.includes(e) ? '#ddd6fe' : '#cbd5e1'
+                            borderColor: selectedEquipment.includes(e) ? 'rgba(45,212,191,0.7)' : 'rgba(148,163,184,0.3)',
+                            background: selectedEquipment.includes(e) ? 'rgba(15,118,110,0.22)' : 'rgba(15,23,42,0.52)',
+                            color: selectedEquipment.includes(e) ? '#99f6e4' : '#cbd5e1'
                           }}
                         >
                           {e}
@@ -350,17 +376,17 @@ function ExerciseLibrary() {
       <main className="relative mx-auto w-full max-w-7xl px-4 pb-14 pt-8 sm:px-6 lg:px-8">
         <motion.section
           className="relative overflow-hidden rounded-[30px] border p-6 sm:p-8"
-          style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'linear-gradient(145deg, rgba(15,23,42,0.86) 0%, rgba(9,13,27,0.88) 100%)' }}
+          style={{ borderColor: 'rgba(148,163,184,0.35)', background: 'linear-gradient(145deg, rgba(14,19,28,0.9) 0%, rgba(8,11,16,0.92) 100%)' }}
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full blur-3xl" style={{ background: 'rgba(34,211,238,0.2)' }} />
-          <div className="pointer-events-none absolute -bottom-16 left-0 h-52 w-52 rounded-full blur-3xl" style={{ background: 'rgba(196,181,253,0.16)' }} />
+          <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full blur-3xl" style={{ background: 'rgba(245,158,11,0.18)' }} />
+          <div className="pointer-events-none absolute -bottom-16 left-0 h-52 w-52 rounded-full blur-3xl" style={{ background: 'rgba(20,184,166,0.14)' }} />
 
           <div className="relative grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-end">
             <div className="space-y-5">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.3em] text-cyan-200">Video-first movement catalog</p>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200">Video-first movement catalog</p>
                 <h2 className="mt-2 text-3xl font-semibold leading-tight text-white sm:text-4xl" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                   Curated tutorials with modern training clarity
                 </h2>
@@ -389,7 +415,7 @@ function ExerciseLibrary() {
                   {favorites.length} favorites
                 </span>
                 {activeFilterCount > 0 && (
-                  <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: 'rgba(196,181,253,0.55)', background: 'rgba(109,40,217,0.16)', color: '#ddd6fe' }}>
+                  <span className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ borderColor: 'rgba(45,212,191,0.55)', background: 'rgba(13,148,136,0.2)', color: '#99f6e4' }}>
                     {activeFilterCount} active filters
                   </span>
                 )}
@@ -420,15 +446,15 @@ function ExerciseLibrary() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -14 }}
               className="relative mt-7 overflow-hidden rounded-[28px] border p-6"
-              style={{ borderColor: 'rgba(196,181,253,0.46)', background: 'linear-gradient(150deg, rgba(76,29,149,0.3) 0%, rgba(30,41,59,0.6) 100%)' }}
+              style={{ borderColor: 'rgba(251,191,36,0.42)', background: 'linear-gradient(150deg, rgba(120,53,15,0.34) 0%, rgba(26,34,48,0.62) 100%)' }}
             >
-              <div className="pointer-events-none absolute -right-8 top-[-34px] h-40 w-40 rounded-full blur-3xl" style={{ background: 'rgba(168,85,247,0.25)' }} />
+              <div className="pointer-events-none absolute -right-8 top-[-34px] h-40 w-40 rounded-full blur-3xl" style={{ background: 'rgba(245,158,11,0.25)' }} />
 
               <div className="relative mb-5 flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <Sparkles className="text-purple-200" size={24} />
+                  <Sparkles className="text-amber-200" size={24} />
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-purple-200/85">Smart Suggestions</p>
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-amber-200/85">Smart Suggestions</p>
                     <h3 className="text-2xl font-semibold text-white">AI Recommendations</h3>
                   </div>
                 </div>
@@ -448,9 +474,9 @@ function ExerciseLibrary() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.08 }}
                       className="rounded-2xl border p-5"
-                      style={{ borderColor: 'rgba(196,181,253,0.4)', background: 'rgba(15,23,42,0.62)' }}
+                      style={{ borderColor: 'rgba(251,191,36,0.35)', background: 'rgba(15,23,42,0.62)' }}
                     >
-                      <p className="text-xs uppercase tracking-[0.14em] text-purple-200">AI pick {index + 1}</p>
+                      <p className="text-xs uppercase tracking-[0.14em] text-amber-200">AI pick {index + 1}</p>
                       <h4 className="mt-2 text-xl font-semibold text-white">{rec.name}</h4>
                       <p className="mt-2 text-sm text-slate-300">{rec.description}</p>
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -546,13 +572,13 @@ function ExerciseLibrary() {
                   <motion.article
                     key={ex.id}
                     className="group relative overflow-hidden rounded-[28px] border p-[1px]"
-                    style={{ borderColor: 'rgba(148,163,184,0.32)', background: 'linear-gradient(145deg, rgba(125,211,252,0.3), rgba(236,72,153,0.12), rgba(15,23,42,0.6))' }}
+                    style={{ borderColor: 'rgba(148,163,184,0.32)', background: 'linear-gradient(145deg, rgba(251,146,60,0.28), rgba(20,184,166,0.14), rgba(15,23,42,0.6))' }}
                     initial={{ opacity: 0, y: 18 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.05 }}
                     whileHover={{ y: -6 }}
                   >
-                    <div className="h-full rounded-[27px] border" style={{ borderColor: 'rgba(148,163,184,0.3)', background: 'linear-gradient(170deg, rgba(15,23,42,0.88) 0%, rgba(8,14,30,0.92) 100%)' }}>
+                    <div className="h-full rounded-[27px] border" style={{ borderColor: 'rgba(148,163,184,0.3)', background: 'linear-gradient(170deg, rgba(14,19,28,0.9) 0%, rgba(8,12,18,0.94) 100%)' }}>
                       <div className="relative aspect-[16/10] cursor-pointer overflow-hidden rounded-t-[26px]" onClick={() => setExpandedExercise(ex)}>
                         <img
                           src={getThumbnailUrl(ex.videoId)}
@@ -561,7 +587,7 @@ function ExerciseLibrary() {
                           loading="lazy"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/20 to-transparent" />
-                        <div className="absolute inset-0 bg-gradient-to-tr from-cyan-400/12 to-fuchsia-400/6 opacity-80" />
+                        <div className="absolute inset-0 bg-gradient-to-tr from-amber-400/15 to-teal-400/8 opacity-80" />
 
                         <button
                           onClick={(e) => {
@@ -574,9 +600,16 @@ function ExerciseLibrary() {
                           <Star size={15} className={isFavorite(ex.id) ? 'fill-yellow-400 text-yellow-300' : 'text-slate-300'} />
                         </button>
 
-                        <span className="absolute right-4 top-4 z-20 rounded-full border border-cyan-200/35 bg-cyan-300/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-100">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            applyEquipmentTag(ex.equipment)
+                          }}
+                          className="absolute right-4 top-4 z-20 rounded-full border border-teal-200/35 bg-teal-300/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-teal-100"
+                          title={`Filter by equipment: ${ex.equipment}`}
+                        >
                           {ex.equipment}
-                        </span>
+                        </button>
 
                         <div className="absolute inset-0 z-10 flex items-center justify-center">
                           <div className="rounded-full border border-cyan-100/45 bg-slate-900/60 p-4 backdrop-blur-md transition-colors group-hover:bg-cyan-500/45">
@@ -591,19 +624,23 @@ function ExerciseLibrary() {
                             <h3 className="text-2xl font-semibold leading-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{ex.name}</h3>
                             <p className="mt-2 text-sm text-slate-300/85 line-clamp-2">{ex.description}</p>
                           </div>
-                          <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${getDifficultyColor(ex.difficulty)}`}>
+                          <button
+                            onClick={() => applyDifficultyTag(ex.difficulty)}
+                            className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${getDifficultyColor(ex.difficulty)}`}
+                            title={`Filter by difficulty: ${ex.difficulty}`}
+                          >
                             {ex.difficulty}
-                          </span>
+                          </button>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div className="rounded-xl border px-3 py-2" style={{ borderColor: 'rgba(148,163,184,0.3)', background: 'rgba(15,23,42,0.58)' }}>
                             <p className="text-[10px] uppercase tracking-[0.12em] text-slate-400">Target sets</p>
-                            <p className="mt-1 text-lg font-semibold text-cyan-100">{ex.sets}</p>
+                            <p className="mt-1 text-lg font-semibold text-amber-100">{ex.sets}</p>
                           </div>
                           <div className="rounded-xl border px-3 py-2" style={{ borderColor: 'rgba(148,163,184,0.3)', background: 'rgba(15,23,42,0.58)' }}>
                             <p className="text-[10px] uppercase tracking-[0.12em] text-slate-400">Rep range</p>
-                            <p className="mt-1 text-lg font-semibold text-fuchsia-100">{ex.reps}</p>
+                            <p className="mt-1 text-lg font-semibold text-teal-100">{ex.reps}</p>
                           </div>
                         </div>
 
@@ -653,7 +690,7 @@ function ExerciseLibrary() {
                         <button
                           onClick={() => setExpandedExercise(ex)}
                           className="w-full rounded-xl border px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white transition-colors"
-                          style={{ borderColor: 'rgba(56,189,248,0.54)', background: 'linear-gradient(90deg, rgba(2,132,199,0.42), rgba(139,92,246,0.38))' }}
+                          style={{ borderColor: 'rgba(251,191,36,0.54)', background: 'linear-gradient(90deg, rgba(180,83,9,0.52), rgba(15,118,110,0.42))' }}
                         >
                           <span className="inline-flex items-center gap-2">
                             <Play size={14} fill="currentColor" />
@@ -701,7 +738,7 @@ function ExerciseLibrary() {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 30, opacity: 0, scale: 0.96 }}
               className="w-full max-w-4xl overflow-hidden rounded-[32px] border"
-              style={{ borderColor: 'rgba(148,163,184,0.36)', background: 'linear-gradient(160deg, rgba(15,23,42,0.95) 0%, rgba(7,11,23,0.95) 100%)' }}
+              style={{ borderColor: 'rgba(148,163,184,0.36)', background: 'linear-gradient(160deg, rgba(14,19,28,0.95) 0%, rgba(8,12,18,0.95) 100%)' }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="relative aspect-video bg-black">
@@ -735,13 +772,13 @@ function ExerciseLibrary() {
 
               <div className="space-y-6 p-6 sm:p-8">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-cyan-200">Exercise details</p>
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-amber-200">Exercise details</p>
                   <h2 className="mt-2 text-4xl font-semibold leading-tight text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{expandedExercise.name}</h2>
                   <p className="mt-3 text-slate-300">{expandedExercise.description}</p>
                 </div>
 
-                <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(56,189,248,0.4)', background: 'rgba(14,116,144,0.14)' }}>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-cyan-200">Coach tip</p>
+                <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(251,191,36,0.4)', background: 'rgba(180,83,9,0.16)' }}>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-amber-200">Coach tip</p>
                   <p className="mt-2 text-slate-100">{expandedExercise.tips}</p>
                 </div>
 
@@ -767,7 +804,7 @@ function ExerciseLibrary() {
                 )}
 
                 <button
-                  className="w-full rounded-xl border border-cyan-300/50 bg-cyan-300/10 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-100 transition-colors hover:bg-cyan-300/20"
+                  className="w-full rounded-xl border border-amber-300/50 bg-amber-300/10 px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-100 transition-colors hover:bg-amber-300/20"
                   onClick={() => setExpandedExercise(null)}
                 >
                   Close player

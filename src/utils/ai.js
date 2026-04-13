@@ -55,6 +55,141 @@ const FALLBACK_WORKOUTS = {
   }
 }
 
+const EXPERIENCE_NAME_REPLACEMENTS = {
+  beginner: {
+    'Deadlift': 'Romanian Deadlift',
+    'Pull-ups': 'Assisted Pull-ups',
+    'Pistol Squats': 'Assisted Split Squat',
+    'Box Jumps': 'Step-ups',
+    'Barbell Complex': 'Dumbbell Complex',
+    'Burpees': 'Half Burpees',
+  },
+  advanced: {
+    'Push-ups': 'Weighted Push-ups',
+    'Barbell Squat': 'Paused Barbell Squat',
+    'Overhead Press': 'Push Press',
+    'Dumbbell Squats': 'Tempo Dumbbell Squat',
+    'Mountain Climbers': 'Sprinter Mountain Climbers',
+  },
+}
+
+const GOAL_FINISHERS = {
+  full_gym: {
+    muscle_gain: {
+      name: 'Loaded Carry',
+      sets: '4',
+      reps: '30-40m',
+      equipment: 'Dumbbells',
+      notes: 'Heavy carry for grip and trunk strength',
+    },
+    weight_loss: {
+      name: 'Rower Intervals',
+      sets: '6',
+      reps: '30 sec hard / 30 sec easy',
+      equipment: 'Rower',
+      notes: 'Maintain high effort each round',
+    },
+  },
+  home: {
+    muscle_gain: {
+      name: 'Dumbbell Carry',
+      sets: '4',
+      reps: '30-40m',
+      equipment: 'Dumbbells',
+      notes: 'Slow controlled walk',
+    },
+    weight_loss: {
+      name: 'Jump Rope Intervals',
+      sets: '6',
+      reps: '45 sec on / 15 sec off',
+      equipment: 'Jump Rope',
+      notes: 'Keep a steady fast cadence',
+    },
+  },
+  bodyweight: {
+    muscle_gain: {
+      name: 'Tempo Push-up Finisher',
+      sets: '3',
+      reps: 'AMRAP',
+      equipment: 'Bodyweight',
+      notes: '3-second lower, 1-second pause',
+    },
+    weight_loss: {
+      name: 'EMOM Cardio Burst',
+      sets: '10',
+      reps: '20 sec burpees + 40 sec march',
+      equipment: 'Bodyweight',
+      notes: 'Repeat every minute on the minute',
+    },
+  },
+}
+
+const toSetRange = (value) => {
+  const match = String(value || '').match(/(\d+)(?:\s*-\s*(\d+))?/)
+  if (!match) return [3, 3]
+  const min = Number(match[1])
+  const max = Number(match[2] || match[1])
+  return [min, max]
+}
+
+const formatSetRange = (min, max) => {
+  return min === max ? `${min}` : `${min}-${max}`
+}
+
+const tuneByExperience = (exercises, experience, goal) => {
+  return exercises.map((exercise) => {
+    const next = { ...exercise }
+    const replacements = EXPERIENCE_NAME_REPLACEMENTS[experience] || {}
+    if (replacements[next.name]) {
+      next.name = replacements[next.name]
+    }
+
+    const [setMin, setMax] = toSetRange(next.sets)
+    if (experience === 'beginner') {
+      const min = Math.max(2, setMin - 1)
+      const max = Math.max(min, Math.min(3, setMax))
+      next.sets = formatSetRange(min, max)
+      next.notes = `${next.notes || ''}${next.notes ? ' | ' : ''}Beginner: prioritize form and controlled tempo`
+      if (goal === 'weight_loss' && !/sec/i.test(String(next.reps))) {
+        next.reps = '10-15'
+      }
+    }
+
+    if (experience === 'advanced') {
+      const min = Math.min(6, setMin + 1)
+      const max = Math.min(6, setMax + 1)
+      next.sets = formatSetRange(min, Math.max(min, max))
+      next.notes = `${next.notes || ''}${next.notes ? ' | ' : ''}Advanced: push intensity near technical failure`
+      if (goal === 'muscle_gain' && !/sec|m/i.test(String(next.reps))) {
+        next.reps = '6-10'
+      }
+    }
+
+    return next
+  })
+}
+
+const detectExperience = (promptLower) => {
+  if (promptLower.includes('beginner')) return 'beginner'
+  if (promptLower.includes('advanced')) return 'advanced'
+  return 'intermediate'
+}
+
+const detectGoal = (promptLower) => {
+  const weightLossHints = [
+    'weight loss',
+    'lose weight',
+    'fat loss',
+    'lose body fat',
+    'body fat',
+    'burn fat',
+    'cutting',
+    'cut phase',
+  ]
+  if (weightLossHints.some((hint) => promptLower.includes(hint))) return 'weight_loss'
+  return 'muscle_gain'
+}
+
 const FALLBACK_MEALS = {
   high_protein: [
     { name: 'Grilled Chicken Bowl', calories: 450, protein: 40, carbs: 35, fat: 12, description: 'With brown rice and steamed broccoli' },
@@ -123,14 +258,19 @@ function fallbackResponse(prompt, type) {
   console.warn('⚠️ Using fallback data')
 
   if (type === 'workout') {
-    const isHome = prompt.toLowerCase().includes('home')
-    const isBodyweight = prompt.toLowerCase().includes('bodyweight')
-    const isWeightLoss = prompt.toLowerCase().includes('weight loss') || prompt.toLowerCase().includes('lose weight')
+    const promptLower = prompt.toLowerCase()
+    const isHome = promptLower.includes('home')
+    const isBodyweight = promptLower.includes('bodyweight')
+    const experience = detectExperience(promptLower)
+    const goal = detectGoal(promptLower)
 
     const equipment = isBodyweight ? 'bodyweight' : isHome ? 'home' : 'full_gym'
-    const goal = isWeightLoss ? 'weight_loss' : 'muscle_gain'
+    const baseExercises = FALLBACK_WORKOUTS[equipment][goal] || FALLBACK_WORKOUTS.full_gym.muscle_gain
+    const tunedExercises = tuneByExperience(baseExercises, experience, goal)
+    const finisher = GOAL_FINISHERS[equipment]?.[goal]
+    const payload = finisher ? [...tunedExercises, finisher] : tunedExercises
 
-    return JSON.stringify(FALLBACK_WORKOUTS[equipment][goal])
+    return JSON.stringify(payload)
   }
 
   if (type === 'meal') {
