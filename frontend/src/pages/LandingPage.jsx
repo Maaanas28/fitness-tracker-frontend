@@ -1,15 +1,156 @@
-import React, { useEffect, useRef, useCallback, memo } from 'react'
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowUpRight, Play, Zap, Activity } from 'lucide-react'
+import { motion } from 'framer-motion'
+import {
+  Activity, Dumbbell, ShieldCheck, Brain, ArrowUpRight,
+  ChevronRight, Apple, Target, Droplet, AlarmClock
+} from 'lucide-react'
+import { isAuthenticated } from '../services/api'
 
-// --- CURSOR: NO transition, NO shadow = ZERO LAG ---
+// ─── REUSABLE COMPONENTS ──────────────────────────────────────────────────────
+
+// FadeIn component
+const FadeIn = ({ children, delay = 0, duration = 0.7, x = 0, y = 30, scale = 1, className = "" }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x, y, scale }}
+      whileInView={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration, delay, ease: [0.25, 0.1, 0.25, 1] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  )
+}
+
+// Magnet component
+const Magnet = ({ children, padding = 150, strength = 3, activeTransition = "transform 0.3s ease-out", inactiveTransition = "transform 0.6s ease-in-out" }) => {
+  const ref = useRef(null)
+  const [transform, setTransform] = useState("translate3d(0px, 0px, 0px)")
+  const [transition, setTransition] = useState(inactiveTransition)
+
+  const handleMouseMove = useCallback((e) => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const centerY = rect.top + rect.height / 2
+    const distanceX = e.clientX - centerX
+    const distanceY = e.clientY - centerY
+    const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY)
+
+    if (distance < padding) {
+      setTransition(activeTransition)
+      const tx = distanceX / strength
+      const ty = distanceY / strength
+      setTransform(`translate3d(${tx}px, ${ty}px, 0px)`)
+    } else {
+      setTransition(inactiveTransition)
+      setTransform("translate3d(0px, 0px, 0px)")
+    }
+  }, [padding, strength, activeTransition, inactiveTransition])
+
+  useEffect(() => {
+    window.addEventListener('mousemove', handleMouseMove, { passive: true })
+    return () => window.removeEventListener('mousemove', handleMouseMove)
+  }, [handleMouseMove])
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        transform,
+        transition,
+        willChange: 'transform'
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+// CTA Button
+const CTAButton = ({ label, onClick }) => {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative px-8 py-3.5 rounded-full font-bold uppercase tracking-widest text-xs transition-all duration-300 overflow-hidden"
+      style={{
+        background: 'linear-gradient(90deg, #1e293b 0%, #0f172a 100%)',
+        color: '#D7E2EA',
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 12px 30px rgba(0,0,0,0.45)'
+      }}
+    >
+      <span className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <span className="relative z-10 flex items-center gap-2">
+        {label}
+        <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200" />
+      </span>
+    </button>
+  )
+}
+
+// Ghost Button
+const GhostButton = ({ label, onClick }) => {
+  return (
+    <button
+      onClick={onClick}
+      className="px-6 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider border-2 border-[#D7E2EA] hover:bg-[#D7E2EA]/10 text-[#D7E2EA] transition-all duration-300"
+    >
+      {label}
+    </button>
+  )
+}
+
+// Character Reveal Scroll Text
+const AnimatedText = ({ text }) => {
+  const containerRef = useRef(null)
+  const [revealProgress, setRevealProgress] = useState(0)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const windowHeight = window.innerHeight
+      const triggerTop = windowHeight * 0.8
+      const triggerBottom = windowHeight * 0.2
+      const progress = (triggerTop - rect.top) / (triggerTop - triggerBottom)
+      setRevealProgress(Math.max(0, Math.min(1, progress)))
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll()
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const words = text.split(" ")
+  const revealCount = Math.floor(words.length * revealProgress)
+
+  return (
+    <p ref={containerRef} className="text-zinc-400 text-lg sm:text-xl md:text-2xl lg:text-3xl font-light leading-relaxed max-w-4xl tracking-wide select-none">
+      {words.map((word, i) => {
+        const isRevealed = i <= revealCount
+        return (
+          <span
+            key={i}
+            className="inline-block mr-2 transition-colors duration-300"
+            style={{ color: isRevealed ? '#D7E2EA' : 'rgba(161,161,170,0.18)' }}
+          >
+            {word}
+          </span>
+        )
+      })}
+    </p>
+  )
+}
+
+// Custom Cursor Overlay
 const CustomCursor = () => {
   const cursorRef = useRef(null)
 
   useEffect(() => {
     const cursor = cursorRef.current
     if (!cursor) return
-
     const isDesktop = window.matchMedia('(min-width: 768px) and (pointer: fine)').matches
     if (!isDesktop) {
       cursor.style.display = 'none'
@@ -19,7 +160,6 @@ const CustomCursor = () => {
     const onMouseMove = (e) => {
       cursor.style.transform = `translate(${e.clientX - 12}px, ${e.clientY - 12}px)`
     }
-
     window.addEventListener('mousemove', onMouseMove, { passive: true })
     return () => window.removeEventListener('mousemove', onMouseMove)
   }, [])
@@ -30,94 +170,15 @@ const CustomCursor = () => {
       className="fixed top-0 left-0 w-6 h-6 pointer-events-none z-[100]"
       style={{ willChange: 'transform', transform: 'translate(-100px, -100px)' }}
     >
-      <div className="w-full h-full bg-white rounded-full" />
+      <div className="w-full h-full bg-white rounded-full opacity-40 blur-[1px]" />
     </div>
   )
 }
 
-// --- SPOTLIGHT CARD ---
-const SpotlightCard = memo(({ children, className = "" }) => {
-  const cardRef = useRef(null)
-  const rafRef = useRef()
-
-  const handleMouseMove = useCallback((e) => {
-    if (!cardRef.current) return
-    if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    rafRef.current = requestAnimationFrame(() => {
-      const rect = cardRef.current.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / rect.width) * 100
-      const y = ((e.clientY - rect.top) / rect.height) * 100
-      cardRef.current.style.setProperty('--x', `${x}%`)
-      cardRef.current.style.setProperty('--y', `${y}%`)
-    })
-  }, [])
-
-  useEffect(() => {
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
-  }, [])
-
-  return (
-    <div
-      ref={cardRef}
-      className={`group relative border border-white/10 bg-zinc-900/80 overflow-hidden transition-all duration-300 hover:border-red-600/30 hover:shadow-2xl hover:shadow-red-600/10 ${className}`}
-      onMouseMove={handleMouseMove}
-      style={{ '--x': '50%', '--y': '50%' }}
-    >
-      <div
-        className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-        style={{ background: `radial-gradient(600px circle at var(--x) var(--y), rgba(220, 38, 38, 0.15), transparent 40%)` }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/20 pointer-events-none" />
-      <div className="relative h-full z-10">{children}</div>
-    </div>
-  )
-})
-SpotlightCard.displayName = 'SpotlightCard'
-
-// --- STATS BAR ---
-const StatBar = memo(({ label, val }) => {
-  const [width, setWidth] = React.useState(0)
-  const barRef = useRef(null)
-
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          setWidth(val)
-          observer.disconnect()
-        }
-      })
-    }, { threshold: 0.1 })
-    if (barRef.current) observer.observe(barRef.current)
-    return () => observer.disconnect()
-  }, [val])
-
-  return (
-    <div ref={barRef} className="group/bar">
-      <div className="flex justify-between text-xs font-mono text-zinc-500 mb-2">
-        <span>{label}</span>
-        <span className="text-white/80">{val}%</span>
-      </div>
-      <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-gradient-to-r from-white to-red-400 group-hover/bar:from-red-500 group-hover/bar:to-red-300 transition-all duration-1000 ease-out"
-          style={{ width: `${width}%` }}
-        />
-      </div>
-    </div>
-  )
-})
-StatBar.displayName = 'StatBar'
-
-const statsData = [
-  { label: 'HYPERTROPHY', val: 92 },
-  { label: 'RECOVERY', val: 64 },
-  { label: 'INTENSITY', val: 88 }
-]
-
+// Noise Texture
 const NoiseTexture = memo(() => (
   <div
-    className="fixed inset-0 z-50 pointer-events-none opacity-[0.02]"
+    className="fixed inset-0 z-50 pointer-events-none opacity-[0.025]"
     style={{
       backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E")`,
       backgroundSize: '128px 128px',
@@ -126,154 +187,453 @@ const NoiseTexture = memo(() => (
 ))
 NoiseTexture.displayName = 'NoiseTexture'
 
-function LandingPage() {
-  const navigate = useNavigate()
-  const handleLogin = useCallback(() => navigate('/login'), [navigate])
+// ─── SECTIONS ─────────────────────────────────────────────────────────────────
 
+// 1. HeroSection
+const HeroSection = ({ onNavigate }) => {
   return (
-    <div className="bg-black text-white min-h-screen selection:bg-red-600 selection:text-black font-sans overflow-x-hidden">
-      <CustomCursor />
-      <NoiseTexture />
-
-      {/* Ambient Background */}
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-20%] left-[-10%] w-[60vw] h-[60vw] bg-red-800/20 blur-[120px] rounded-full" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] bg-blue-900/10 blur-[120px] rounded-full" />
+    <section className="relative h-screen flex flex-col justify-between overflow-hidden">
+      {/* Ambient background glows */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-20%] w-[80vw] h-[80vw] bg-cyan-900/10 blur-[140px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[70vw] h-[70vw] bg-blue-950/15 blur-[160px] rounded-full" />
       </div>
 
       {/* Navbar */}
-      <nav className="fixed top-0 w-full z-40 px-6 md:px-10 py-8 flex justify-between items-center mix-blend-difference">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse" />
-          <span className="text-xl font-bold tracking-tighter">AI.FIT</span>
-        </div>
-        <button
-          onClick={handleLogin}
-          className="text-xs md:text-sm font-medium uppercase tracking-widest hover:text-red-500 transition-colors"
-        >
-          [ Login ]
-        </button>
-      </nav>
-
-      {/* Hero Section */}
-      <section className="relative min-h-screen flex flex-col justify-between items-center overflow-hidden py-24 md:py-32">
-        <h1 className="relative z-10 text-[18vw] md:text-[14vw] leading-none font-black tracking-tighter text-transparent select-none bg-clip-text bg-gradient-to-b from-white to-zinc-600">
-          DEFINE
-        </h1>
-
-        {/* Center Card */}
-        <div className="relative z-20 w-[300px] h-[400px] md:w-[350px] md:h-[450px] my-8">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[150%] h-[150%] bg-red-600/20 blur-[100px] rounded-full animate-pulse pointer-events-none" />
-          <div className="relative w-full h-full bg-zinc-900/90 border border-white/10 rounded-[30px] overflow-hidden flex flex-col items-center justify-between p-8 shadow-2xl shadow-black backdrop-blur-sm">
-            <div className="w-full flex justify-between items-center border-b border-white/5 pb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
-                <span className="text-[10px] font-mono text-gray-400">LIVE FEED</span>
-              </div>
-              <Zap size={16} className="text-white" />
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-              <Activity size={80} className="text-white opacity-80" strokeWidth={1} />
-            </div>
-            <div className="w-full grid grid-cols-2 gap-4 pt-4 border-t border-white/5">
-              <div>
-                <p className="text-[10px] text-gray-500 font-mono">HRV</p>
-                <p className="text-xl font-bold text-white">42<span className="text-xs text-gray-500 ml-1">ms</span></p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] text-gray-500 font-mono">LOAD</p>
-                <p className="text-xl font-bold text-white">98<span className="text-xs text-gray-500 ml-1">%</span></p>
-              </div>
-            </div>
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_2px] pointer-events-none z-50 mix-blend-overlay" />
+      <FadeIn delay={0} y={-20}>
+        <nav className="w-full px-6 md:px-10 pt-6 md:pt-8 flex justify-between items-center z-10">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-sm font-black tracking-[0.25em] text-[#D7E2EA]">FITTRACK AI</span>
           </div>
+          <div className="flex items-center gap-6 md:gap-12">
+            {['Dashboard', 'Workouts', 'AI Analysis'].map((item) => (
+              <button
+                key={item}
+                onClick={() => onNavigate(item === 'Dashboard' ? '/dashboard' : item === 'Workouts' ? '/workout' : '/ai')}
+                className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.2em] text-[#D7E2EA] hover:opacity-70 transition-opacity duration-200"
+              >
+                {item}
+              </button>
+            ))}
+            {isAuthenticated() ? (
+              <button
+                onClick={() => onNavigate('/dashboard')}
+                className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.2em] px-4 py-1.5 border border-cyan-400/40 bg-cyan-500/10 text-cyan-300 rounded-full hover:bg-cyan-500/20 transition-colors"
+              >
+                Dashboard
+              </button>
+            ) : (
+              <button
+                onClick={() => onNavigate('/login')}
+                className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.2em] px-4 py-1.5 border border-[#D7E2EA]/20 rounded-full hover:bg-white/5 transition-colors"
+              >
+                Login
+              </button>
+            )}
+          </div>
+        </nav>
+      </FadeIn>
+
+      {/* Hero Layout Content */}
+      <div className="relative z-10 flex-1 grid lg:grid-cols-[1.2fr,0.8fr] items-center gap-10 px-6 md:px-10">
+        {/* Left Side */}
+        <div className="space-y-6">
+          <FadeIn delay={0.1}>
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#D7E2EA]/12 bg-white/5 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-cyan-400" />
+              <span className="text-[9px] tracking-[0.22em] font-black text-cyan-300 uppercase">BRUTAL MODE ENABLED</span>
+            </div>
+          </FadeIn>
+
+          <FadeIn delay={0.15} y={40}>
+            <h1 className="hero-heading text-[7.5vw] sm:text-[6.5vw] lg:text-[5.2vw] font-black uppercase leading-[0.9] tracking-tight">
+              Train Smarter<br />With AI.
+            </h1>
+          </FadeIn>
         </div>
 
-        <h1
-          className="relative z-10 text-[18vw] md:text-[14vw] leading-none font-black tracking-tighter text-transparent select-none"
-          style={{ WebkitTextStroke: '1px rgba(255,255,255,0.5)' }}
-        >
-          LIMITS
-        </h1>
-
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 mix-blend-screen">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-white/50">Scroll</p>
-          <div className="w-[1px] h-8 bg-gradient-to-b from-white/50 to-transparent animate-pulse" />
-        </div>
-      </section>
-
-      {/* Content Grid */}
-      <section className="relative z-20 px-4 md:px-10 pb-32 pt-10 max-w-[1600px] mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 md:gap-6">
-
-          {/* Card 1 */}
-          <div className="col-span-1 md:col-span-8 h-[350px] md:h-[450px]">
-            <SpotlightCard className="h-full rounded-3xl p-6 md:p-10 flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-start mb-6">
-                  <Activity className="text-red-500" size={32} />
-                  <span className="text-xs font-mono text-zinc-500 border border-zinc-800 px-2 py-1 rounded">V.2.0.1</span>
-                </div>
-                <h3 className="text-2xl md:text-4xl font-medium tracking-tight mb-3">Neural Tracking.</h3>
-                <p className="text-zinc-400 max-w-lg text-base md:text-lg leading-relaxed">
-                  Our AI doesn't just count reps. It analyzes biomechanics in real-time, adjusting load and volume dynamically.
-                </p>
-              </div>
-              <div className="flex justify-end">
-                <button className="rounded-full w-12 h-12 border border-white/10 flex items-center justify-center hover:bg-white hover:text-black transition-colors">
-                  <ArrowUpRight size={20} />
-                </button>
-              </div>
-            </SpotlightCard>
-          </div>
-
-          {/* Card 2 */}
-          <div className="col-span-1 md:col-span-4 h-[350px] md:h-[450px]">
-            <SpotlightCard className="h-full rounded-3xl p-6 md:p-8 relative flex flex-col">
-              <h3 className="text-xl md:text-2xl font-medium mb-6">Live Analytics</h3>
-              <div className="space-y-4 flex-1">
-                {statsData.map((stat, i) => (
-                  <StatBar key={i} label={stat.label} val={stat.val} />
-                ))}
-              </div>
-              <div className="mt-auto pt-6 border-t border-white/5">
-                <p className="text-xs text-zinc-500">Processing real-time user data...</p>
-              </div>
-            </SpotlightCard>
-          </div>
-
-          {/* Card 3 - CTA */}
-          <div className="col-span-1 md:col-span-12 h-[250px] md:h-[300px] mt-4 md:mt-6">
+        {/* Right Side: Mockup Visual */}
+        <FadeIn delay={0.6} y={30} className="flex justify-center">
+          <Magnet padding={150} strength={3}>
             <div
-              onClick={handleLogin}
-              className="relative h-full rounded-3xl overflow-hidden bg-gradient-to-br from-red-600/10 to-transparent border border-white/10 flex items-center justify-center group cursor-pointer"
+              className="w-[280px] h-[340px] sm:w-[320px] sm:h-[390px] p-6 rounded-[32px] border flex flex-col justify-between select-none relative overflow-hidden"
+              style={{
+                background: 'rgba(10,10,10,0.6)',
+                backdropFilter: 'blur(16px)',
+                borderColor: 'rgba(255,255,255,0.08)',
+                boxShadow: '0 24px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)'
+              }}
             >
-              <div className="absolute inset-0 flex items-center justify-center leading-none select-none pointer-events-none">
-                <div className="flex whitespace-nowrap text-[6rem] md:text-[10rem] font-black text-white/5 animate-marquee">
-                  START NOW START NOW START NOW START NOW
+              <div className="w-full flex justify-between items-center border-b border-white/5 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping" />
+                  <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-widest">BIOMETRICS FEED</span>
+                </div>
+                <Activity size={14} className="text-cyan-400" />
+              </div>
+
+              <div className="flex-1 flex flex-col justify-center items-center py-4">
+                <p className="text-[10px] text-zinc-450 uppercase tracking-[0.2em] mb-1 font-mono">Real-Time Pulse</p>
+                <div className="text-5xl font-black text-white flex items-end tracking-tighter">
+                  78 <span className="text-xs font-mono text-zinc-500 ml-1 pb-1">BPM</span>
+                </div>
+                <div className="w-full h-12 mt-4 opacity-40">
+                  <svg viewBox="0 0 100 30" className="w-full h-full stroke-cyan-400 fill-none" strokeWidth="1.5">
+                    <path d="M0,15 L30,15 L35,8 L40,22 L45,15 L100,15" />
+                  </svg>
                 </div>
               </div>
-              <div className="relative z-10 text-center px-4">
-                <h2 className="text-3xl md:text-5xl lg:text-7xl font-black italic tracking-tighter mb-4 mix-blend-overlay group-hover:mix-blend-normal transition-all">
-                  JOIN THE ELITE
-                </h2>
-                <button className="bg-red-600 hover:bg-red-700 text-white px-6 md:px-10 py-3 md:py-4 rounded-full font-bold uppercase tracking-widest text-xs md:text-sm flex items-center gap-2 md:gap-3 mx-auto shadow-lg shadow-red-600/30 transition-transform group-hover:scale-105">
-                  <Play size={16} fill="currentColor" /> Initialize
-                </button>
+
+              <div className="w-full grid grid-cols-2 gap-4 pt-3 border-t border-white/5 font-mono">
+                <div>
+                  <p className="text-[9px] text-zinc-500 uppercase">Streak</p>
+                  <p className="text-sm font-black text-[#D7E2EA]">5 Days</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] text-zinc-500 uppercase">Load score</p>
+                  <p className="text-sm font-black text-cyan-400">92%</p>
+                </div>
               </div>
             </div>
+          </Magnet>
+        </FadeIn>
+      </div>
+
+      {/* Bottom Bar */}
+      <div className="px-6 md:px-10 pb-7 sm:pb-8 md:pb-10 flex justify-between items-end z-10 w-full">
+        <FadeIn delay={0.35} y={20}>
+          <p className="text-[#D7E2EA] font-light uppercase tracking-widest leading-relaxed max-w-[260px] sm:max-w-[340px]" style={{ fontSize: 'clamp(0.75rem, 1.1vw, 1.2rem)' }}>
+            AI-powered form analysis, workout tracking, and 2FA-secured progress, all in one dashboard.
+          </p>
+        </FadeIn>
+
+        <FadeIn delay={0.5} y={20}>
+          <CTAButton label="Get Started" onClick={() => onNavigate('/login', { state: { fromLanding: true } })} />
+        </FadeIn>
+      </div>
+    </section>
+  )
+}
+
+// 2. StatsMarqueeSection
+const StatsMarqueeSection = () => {
+  const sectionRef = useRef(null)
+  const [scrollProgress, setScrollProgress] = useState(0)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!sectionRef.current) return
+      const rect = sectionRef.current.getBoundingClientRect()
+      const windowHeight = window.innerHeight
+      if (rect.top < windowHeight && rect.bottom > 0) {
+        setScrollProgress((windowHeight - rect.top) / (windowHeight + rect.height))
+      }
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
+  const row1Items = [
+    "10,000+ Reps Tracked", "AI Form Score: 94%", "2FA Secured Accounts",
+    "Real-Time Body Analysis", "Custom Workout Plans", "Progress Streaks"
+  ]
+
+  const row2Items = [
+    "Groq Vision Insights", "Weekly Leaderboards", "Calorie Tracking",
+    "Rest Timer Alerts", "Real-Time Biometrics", "Milestone Celebrations"
+  ]
+
+  const row1X = (scrollProgress * 250) - 100
+  const row2X = (scrollProgress * -250) + 100
+
+  return (
+    <section ref={sectionRef} className="py-24 bg-black overflow-hidden relative">
+      <div className="space-y-6">
+        {/* Row 1 */}
+        <div
+          className="flex whitespace-nowrap gap-4 transition-transform duration-75 ease-out"
+          style={{ transform: `translate3d(${row1X}px, 0px, 0px)`, willChange: 'transform' }}
+        >
+          {[...row1Items, ...row1Items, ...row1Items].map((text, i) => (
+            <div
+              key={i}
+              className="inline-flex items-center gap-3 px-8 py-6 rounded-2xl border text-sm font-semibold uppercase tracking-widest text-[#D7E2EA] select-none"
+              style={{
+                width: '320px',
+                background: 'rgba(10,10,10,0.5)',
+                borderColor: 'rgba(255,255,255,0.06)',
+                backdropFilter: 'blur(16px)'
+              }}
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+              {text}
+            </div>
+          ))}
+        </div>
+
+        {/* Row 2 */}
+        <div
+          className="flex whitespace-nowrap gap-4 transition-transform duration-75 ease-out"
+          style={{ transform: `translate3d(${row2X}px, 0px, 0px)`, willChange: 'transform' }}
+        >
+          {[...row2Items, ...row2Items, ...row2Items].map((text, i) => (
+            <div
+              key={i}
+              className="inline-flex items-center gap-3 px-8 py-6 rounded-2xl border text-sm font-semibold uppercase tracking-widest text-[#D7E2EA] select-none"
+              style={{
+                width: '320px',
+                background: 'rgba(10,10,10,0.5)',
+                borderColor: 'rgba(255,255,255,0.06)',
+                backdropFilter: 'blur(16px)'
+              }}
+            >
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+              {text}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+
+
+// 4. FeaturesSection
+const FeaturesSection = () => {
+  const features = [
+    {
+      num: '01',
+      title: 'AI Form Analysis',
+      desc: 'Groq Vision-powered posture and rep-form scoring from your workout video or webcam feed.'
+    },
+    {
+      num: '02',
+      title: '2FA Account Security',
+      desc: 'Speakeasy-based two-factor authentication keeps your training data locked down.'
+    },
+    {
+      num: '03',
+      title: 'Custom Workout Plans',
+      desc: 'Adaptive plans that adjust to your logged progress and recovery stats.'
+    },
+    {
+      num: '04',
+      title: 'Progress Dashboard',
+      desc: 'Charted history of reps, weight, and streaks with celebratory confetti on milestones.'
+    },
+    {
+      num: '05',
+      title: 'Smart Rest Timers',
+      desc: 'Context-aware rest suggestions based on previous exercise set intensity.'
+    }
+  ]
+
+  return (
+    <section className="bg-white text-zinc-950 rounded-t-[40px] sm:rounded-t-[50px] md:rounded-t-[60px] px-6 md:px-10 py-24 md:py-32 relative z-20">
+      <div className="max-w-6xl mx-auto space-y-20">
+        <FadeIn>
+          <h2 className="text-center font-black uppercase text-zinc-950 tracking-tighter" style={{ fontSize: 'clamp(2.5rem, 8vw, 110px)', leading: '1' }}>
+            Features
+          </h2>
+        </FadeIn>
+
+        <div className="divide-y divide-zinc-200">
+          {features.map((f, i) => (
+            <div key={i} className="py-8 md:py-12 grid md:grid-cols-[100px,1fr] gap-6 md:gap-12 items-start">
+              <FadeIn delay={i * 0.1}>
+                <span className="text-xl md:text-2xl font-mono font-black text-zinc-300">{f.num}</span>
+              </FadeIn>
+              <div className="space-y-2">
+                <FadeIn delay={i * 0.1 + 0.05}>
+                  <h3 className="text-lg md:text-2xl font-bold uppercase tracking-tight text-zinc-900">{f.title}</h3>
+                </FadeIn>
+                <FadeIn delay={i * 0.1 + 0.1}>
+                  <p className="text-zinc-650 text-sm md:text-base leading-relaxed max-w-3xl">{f.desc}</p>
+                </FadeIn>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// 5. ProgressShowcaseSection
+const ProgressShowcaseSection = ({ onNavigate }) => {
+  const cardData = [
+    {
+      label: 'STATS RECAP',
+      title: 'This Week',
+      num: '01',
+      desc: 'Monitor weekly totals, average caloric burn rates, volumes lifted, and active session streak statistics.',
+      renderGrid: () => (
+        <div className="grid grid-cols-2 gap-4 h-full">
+          <div className="rounded-2xl p-4 border border-white/5 bg-white/5 flex flex-col justify-between">
+            <span className="text-[10px] text-zinc-400 font-mono">STREAK</span>
+            <span className="text-2xl font-black text-cyan-400">5d</span>
+          </div>
+          <div className="rounded-2xl p-4 border border-white/5 bg-white/5 flex flex-col justify-between">
+            <span className="text-[10px] text-zinc-400 font-mono">VOLUME</span>
+            <span className="text-2xl font-black text-white">4.8k kg</span>
+          </div>
+          <div className="rounded-2xl p-4 border border-white/5 bg-white/5 flex flex-col justify-between col-span-2">
+            <span className="text-[10px] text-zinc-400 font-mono">CALORIES BURNED</span>
+            <span className="text-2xl font-black text-zinc-200">1,820 kcal</span>
           </div>
         </div>
-      </section>
+      )
+    },
+    {
+      label: 'BIOMECHANICS',
+      title: 'AI Insights',
+      num: '02',
+      desc: 'Form correction insights captured from webcam and video upload analysis.',
+      renderGrid: () => (
+        <div className="grid grid-cols-1 gap-3 h-full">
+          <div className="rounded-2xl p-3 border border-white/5 bg-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-2 h-2 bg-emerald-400 rounded-full" />
+              <span className="text-xs text-zinc-200">Hip Alignment (Squats)</span>
+            </div>
+            <span className="text-xs font-mono font-bold text-emerald-400">96%</span>
+          </div>
+          <div className="rounded-2xl p-3 border border-white/5 bg-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-2 h-2 bg-amber-400 rounded-full" />
+              <span className="text-xs text-zinc-200">Elbow Flare (Bench Press)</span>
+            </div>
+            <span className="text-xs font-mono font-bold text-amber-400">82%</span>
+          </div>
+          <div className="rounded-2xl p-3 border border-white/5 bg-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
+              <span className="text-xs text-zinc-200">Spine Rounding (Deadlift)</span>
+            </div>
+            <span className="text-xs font-mono font-bold text-red-400">65%</span>
+          </div>
+        </div>
+      )
+    },
+    {
+      label: 'ACHIEVEMENTS',
+      title: 'Milestones',
+      num: '03',
+      desc: 'Unlock training trophies and celebrate personal records with visual milestones.',
+      renderGrid: () => (
+        <div className="grid grid-cols-2 gap-4 h-full">
+          <div className="rounded-2xl p-4 border border-white/5 bg-white/5 text-center flex flex-col justify-center items-center">
+            <Target size={24} className="text-cyan-400 mb-1" />
+            <span className="text-[10px] text-zinc-400 font-mono block">STREAK PR</span>
+            <span className="text-lg font-black text-white">12 Days</span>
+          </div>
+          <div className="rounded-2xl p-4 border border-white/5 bg-white/5 text-center flex flex-col justify-center items-center">
+            <Dumbbell size={24} className="text-blue-400 mb-1" />
+            <span className="text-[10px] text-zinc-400 font-mono block">BENCH PRESS</span>
+            <span className="text-lg font-black text-white">100 kg</span>
+          </div>
+          <div className="rounded-2xl p-4 border border-white/5 bg-white/5 text-center flex flex-col justify-center items-center col-span-2">
+            <Apple size={24} className="text-emerald-400 mb-1" />
+            <span className="text-[10px] text-zinc-400 font-mono block">HEALTHY DIET MONTH</span>
+            <span className="text-sm font-bold text-zinc-200">100% Target Met</span>
+          </div>
+        </div>
+      )
+    }
+  ]
+
+  return (
+    <section className="bg-black rounded-t-[40px] sm:rounded-t-[50px] md:rounded-t-[60px] -mt-12 sm:-mt-14 relative z-30 px-6 md:px-10 py-24 md:py-32">
+      <div className="max-w-6xl mx-auto space-y-16">
+        <FadeIn>
+          <h2 className="hero-heading uppercase font-black" style={{ fontSize: 'clamp(2.5rem, 8vw, 110px)', leading: '1' }}>
+            Your Progress
+          </h2>
+        </FadeIn>
+
+        {/* Stacking Cards */}
+        <div className="space-y-24">
+          {cardData.map((card, i) => {
+            const scale = 1 - (cardData.length - 1 - i) * 0.03
+            const topOffset = i * 32
+
+            return (
+              <div
+                key={i}
+                className="sticky rounded-[40px] md:rounded-[60px] border-2 border-[#D7E2EA]/12 bg-[#080808] p-6 md:p-10 select-none overflow-hidden"
+                style={{
+                  top: `${100 + topOffset}px`,
+                  transform: `scale(${scale})`,
+                  willChange: 'transform',
+                  boxShadow: '0 30px 60px rgba(0,0,0,0.6)'
+                }}
+              >
+                <div className="grid md:grid-cols-[1fr,1fr] gap-8 items-stretch h-full">
+                  {/* Left Side: Stats and Info */}
+                  <div className="flex flex-col justify-between space-y-6">
+                    <div>
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-xs font-mono font-bold text-zinc-500">{card.num}</span>
+                        <span className="w-1.5 h-1.5 bg-[#D7E2EA]/40 rounded-full" />
+                        <span className="text-xs uppercase tracking-wider text-[#D7E2EA]/60 font-semibold">{card.label}</span>
+                      </div>
+                      <h3 className="text-2xl md:text-4xl lg:text-5xl font-black uppercase text-[#D7E2EA] mb-4">
+                        {card.title}
+                      </h3>
+                      <p className="text-zinc-400 text-sm md:text-base leading-relaxed max-w-md">
+                        {card.desc}
+                      </p>
+                    </div>
+
+                    <div className="pt-4">
+                      <GhostButton label="View Details" onClick={() => onNavigate('/progress')} />
+                    </div>
+                  </div>
+
+                  {/* Right Side: Graphic Rendering */}
+                  <div className="border border-white/5 bg-black/40 rounded-3xl p-6 flex flex-col justify-between">
+                    {card.renderGrid()}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── MAIN LANDING PAGE ────────────────────────────────────────────────────────
+function LandingPage() {
+  const navigate = useNavigate()
+
+  const handleNavigation = useCallback((path, options) => {
+    navigate(path, options)
+  }, [navigate])
+
+  return (
+    <div className="bg-black text-white min-h-screen selection:bg-cyan-500 selection:text-black font-sans overflow-x-hidden relative">
+      <CustomCursor />
+      <NoiseTexture />
+
+      {/* Sections rendering */}
+      <HeroSection onNavigate={handleNavigation} />
+      <StatsMarqueeSection />
+      <FeaturesSection />
+      <ProgressShowcaseSection onNavigate={handleNavigation} />
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-8 md:py-12 px-6 md:px-10 flex flex-col md:flex-row justify-between items-end bg-black relative z-10">
-        <div>
-          <h1 className="text-[10vw] md:text-[8vw] leading-none font-black text-zinc-900 select-none">AI.FIT</h1>
+      <footer className="border-t border-[#D7E2EA]/12 py-12 md:py-16 px-6 md:px-10 flex flex-col md:flex-row justify-between items-end bg-[#050505] relative z-40">
+        <div className="space-y-2">
+          <h1 className="text-[8vw] leading-none font-black text-zinc-900 select-none tracking-tighter">AI.FIT</h1>
+          <p className="text-xs text-zinc-500 font-mono">© 2026 FitTrack AI. All rights reserved.</p>
         </div>
-        <div className="flex gap-4 md:gap-8 text-[10px] md:text-xs uppercase tracking-widest text-zinc-500 mb-2 md:mb-6">
+        <div className="flex gap-6 text-[10px] md:text-xs uppercase tracking-widest text-zinc-500 mt-6 md:mt-0">
           {['Instagram', 'Twitter', 'Support'].map((item) => (
-            <a key={item} href="#" className="hover:text-red-500 transition-colors">{item}</a>
+            <a key={item} href="#" className="hover:text-cyan-400 transition-colors">{item}</a>
           ))}
         </div>
       </footer>

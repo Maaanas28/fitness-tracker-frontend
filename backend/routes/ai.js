@@ -53,7 +53,7 @@ router.post('/chat', auth, async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: model || 'llama-3.3-70b-versatile',
+        model: model || 'openai/gpt-oss-20b',
         messages,
         temperature: temperature ?? 0.7,
         max_tokens: max_tokens ?? 2048,

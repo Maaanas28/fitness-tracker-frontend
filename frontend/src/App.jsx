@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { Component, Suspense, lazy, useEffect, useRef } from 'react'
 import { AlertTriangle } from 'lucide-react'
@@ -17,7 +17,6 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const WaterTracker = lazy(() => import('./pages/WaterTracker'))
 const RestTimer = lazy(() => import('./pages/RestTimer'))
 const WorkoutPlanGenerator = lazy(() => import('./pages/WorkoutPlanGenerator'))
-const BodyAnalysis = lazy(() => import('./pages/BodyAnalysis'))
 const AIAssistant = lazy(() => import('./pages/AIAssistant'))
 const AuthCallback = lazy(() => import('./pages/AuthCallback'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
@@ -77,10 +76,10 @@ const ProtectedRoute = ({ children }) => {
 }
 
 function App() {
-  const navigate = useNavigate()
   const location = useLocation()
   const routeStackRef = useRef([])
 
+  // Route stack tracker for location history
   useEffect(() => {
     const currentRoute = `${location.pathname}${location.search}${location.hash}`
     const stack = routeStackRef.current
@@ -90,39 +89,6 @@ function App() {
       stack.push(currentRoute)
     }
   }, [location.pathname, location.search, location.hash])
-
-  useEffect(() => {
-    const onKeyDown = (event) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
-
-      const target = event.target
-      if (target instanceof HTMLElement) {
-        const tag = target.tagName
-        const isTypingField =
-          tag === 'INPUT' ||
-          tag === 'TEXTAREA' ||
-          tag === 'SELECT' ||
-          target.isContentEditable
-
-        if (isTypingField) return
-      }
-
-      const stack = routeStackRef.current
-      if (stack.length > 1) {
-        stack.pop()
-        const previousRoute = stack[stack.length - 1]
-        if (previousRoute) {
-          navigate(previousRoute)
-          return
-        }
-      }
-
-      navigate(-1)
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [navigate])
 
   return (
     <ErrorBoundary>
@@ -169,7 +135,6 @@ function App() {
             <Route path="/water" element={<ProtectedRoute><WaterTracker /></ProtectedRoute>} />
             <Route path="/timer" element={<ProtectedRoute><RestTimer /></ProtectedRoute>} />
             <Route path="/workout-plan" element={<ProtectedRoute><WorkoutPlanGenerator /></ProtectedRoute>} />
-            <Route path="/body-analysis" element={<ProtectedRoute><BodyAnalysis /></ProtectedRoute>} />
             <Route path="/ai" element={<ProtectedRoute><AIAssistant /></ProtectedRoute>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

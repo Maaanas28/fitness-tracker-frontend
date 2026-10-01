@@ -223,7 +223,7 @@ export const generateWithAI = async (prompt, type = 'workout') => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'openai/gpt-oss-20b',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
         max_tokens: 2048,
@@ -278,18 +278,7 @@ function fallbackResponse(prompt, type) {
     return JSON.stringify(isHighProtein ? FALLBACK_MEALS.high_protein : FALLBACK_MEALS.low_cal)
   }
 
-  if (type === 'body-analysis') {
-    return JSON.stringify({
-      bodyType: 'Mesomorph',
-      currentAssessment: 'Based on your inputs, you appear to have a balanced physique with moderate muscle mass and average body fat. Your frame suggests good natural athletic potential.',
-      strengths: ['Good muscle symmetry', 'Athletic build', 'Strong core foundation'],
-      areasToImprove: ['Upper body pulling strength', 'Posterior chain development', 'Cardiovascular endurance'],
-      trainingRecommendations: 'Focus on compound movements 3-4x per week with progressive overload. Add 2 cardio sessions to improve conditioning.',
-      nutritionRecommendations: 'Aim for 0.8-1g protein per lb of bodyweight. Keep carbohydrates moderate and fats healthy. Stay in a slight caloric surplus for muscle gain.',
-      weeklyPlan: '3-4 strength sessions, 2 cardio sessions, 1 active recovery day',
-      estimatedTimeToGoal: '12-16 weeks with consistent training and nutrition'
-    })
-  }
+
 
   return null
 }

@@ -27,21 +27,27 @@
     --text-secondary: 161 161 170;
   }
   
-  /* OPTIMIZATION: Remove body transition (main cause of lag) */
+  html, body, #root {
+    background-color: #0C0C0C !important;
+    color: #D7E2EA;
+    font-family: 'Kanit', sans-serif !important;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  
   body {
-    background-color: rgb(var(--bg-primary));
-    color: rgb(var(--text-primary));
-    /* REMOVED: transition: background-color 0.3s ease, color 0.3s ease; */
-    
-    /* ADDED: Performance optimizations */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    overflow-x: hidden;
   }
 
   /* OPTIMIZATION: Hardware acceleration for all elements */
   * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
     -webkit-tap-highlight-color: transparent;
   }
 }
@@ -128,3 +134,52 @@ img {
 .animate-ping {
   animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
+
+/* ── BIOMETRIC HEARTBEAT & ECG ANIMATIONS ── */
+@keyframes heart-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  25% {
+    transform: scale(1.18);
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(220, 38, 38, 0.8));
+  }
+  40% {
+    transform: scale(1.06);
+    opacity: 0.9;
+  }
+  55% {
+    transform: scale(1.22);
+    opacity: 1;
+    filter: drop-shadow(0 0 14px rgba(220, 38, 38, 0.9));
+  }
+}
+
+.heart-pulse-anim {
+  animation: heart-pulse 1.35s infinite ease-in-out;
+  transform-origin: center;
+}
+
+@keyframes ecg-scan {
+  0% {
+    stroke-dashoffset: 1200;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.ecg-line-anim {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: ecg-scan 5s linear infinite;
+}
+
+.hero-heading {
+  background: linear-gradient(180deg, #646973 0%, #BBCCD7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+

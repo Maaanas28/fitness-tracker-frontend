@@ -97,27 +97,7 @@ export const WaterSkeleton = () => (
   </div>
 )
 
-export const BodyAnalysisSkeleton = () => (
-  <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
-    <div className="h-10 w-72 bg-slate-800/60 rounded-xl animate-pulse" />
-    <div className="grid lg:grid-cols-2 gap-10">
-      <div className="space-y-6">
-        <div className="h-20 bg-slate-900/50 rounded-xl animate-pulse" />
-        <div className="h-72 bg-slate-900/50 rounded-2xl animate-pulse" />
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="h-28 bg-slate-900/50 rounded-2xl animate-pulse" />
-          ))}
-        </div>
-        <div className="h-14 bg-slate-900/50 rounded-2xl animate-pulse" />
-      </div>
-      <div className="space-y-4">
-        <div className="h-10 w-60 bg-slate-800/60 rounded-xl animate-pulse" />
-        <div className="h-96 bg-slate-900/50 rounded-2xl animate-pulse" />
-      </div>
-    </div>
-  </div>
-)
+
 
 export const CalculatorSkeleton = () => (
   <div className="max-w-6xl mx-auto p-6 grid lg:grid-cols-2 gap-6">

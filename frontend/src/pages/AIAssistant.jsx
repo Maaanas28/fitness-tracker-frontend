@@ -29,7 +29,6 @@ function getUserContext() {
   const calorieData = safe('userCalorieData')
   const waterIntake = safe('waterIntake')
   const progressPhotos = Array.isArray(safe('progressPhotos')) ? safe('progressPhotos') : []
-  const savedAnalyses = Array.isArray(safe('savedAnalyses')) ? safe('savedAnalyses') : []
 
   const totalWorkouts = workoutHistory.length
   const totalVolume = workoutHistory.reduce((s, w) => s + (w?.volume || 0), 0)
@@ -53,7 +52,6 @@ function getUserContext() {
     todayCalories,
     todayProtein,
     progressPhotos: progressPhotos.length,
-    savedAnalyses,
     raw: {
       dailyMeals: dailyMeals.slice(0, 5)
     }
@@ -62,7 +60,11 @@ function getUserContext() {
 
 // ─── BUILD SYSTEM PROMPT WITH REAL USER DATA ──────────────────────────────────
 function buildSystemPrompt(ctx) {
-  const p = ctx.profile
+  const p = ctx?.profile
+  const workoutHistory = Array.isArray(ctx?.workoutHistory) ? ctx.workoutHistory : []
+  const currentWorkout = Array.isArray(ctx?.currentWorkout) ? ctx.currentWorkout : []
+  const todayLog = Array.isArray(ctx?.todayLog) ? ctx.todayLog : []
+
   return `You are an elite AI personal trainer and nutritionist inside an AI Fitness Tracker app. You have FULL access to this user's real fitness data. Be specific, data-driven, and feel like a real coach who actually knows them — not a generic chatbot.
 
 USER PROFILE:
@@ -74,22 +76,21 @@ ${p ? `- Name: ${p.name || 'User'}
 - Experience: ${p.experience || 'unknown'}` : '- No profile set up yet'}
 
 WORKOUT DATA:
-- Total workouts completed: ${ctx.totalWorkouts}
-- Total volume lifted all time: ${ctx.totalVolume.toLocaleString()}kg
-- Avg calories burned per workout: ${ctx.avgCalories} kcal
-${ctx.workoutHistory.length > 0 ? `- Recent workouts: ${ctx.workoutHistory.slice(0, 5).map(w => `${w?.date || 'Unknown'} (${w?.exercises || 0} exercises, ${w?.volume || 0}kg volume)`).join(', ')}` : '- No workout history yet'}
-${ctx.currentWorkout.length > 0 ? `- Current active workout: ${ctx.currentWorkout.map(e => e?.name || 'Exercise').filter(Boolean).join(', ')}` : ''}
+- Total workouts completed: ${ctx?.totalWorkouts || 0}
+- Total volume lifted all time: ${(ctx?.totalVolume || 0).toLocaleString()}kg
+- Avg calories burned per workout: ${ctx?.avgCalories || 0} kcal
+${workoutHistory.length > 0 ? `- Recent workouts: ${workoutHistory.slice(0, 5).map(w => `${w?.date || 'Unknown'} (${w?.exercises || 0} exercises, ${w?.volume || 0}kg volume)`).join(', ')}` : '- No workout history yet'}
+${currentWorkout.length > 0 ? `- Current active workout: ${currentWorkout.map(e => e?.name || 'Exercise').filter(Boolean).join(', ')}` : ''}
 
 TODAY'S NUTRITION:
-- Calories consumed today: ${ctx.todayCalories} kcal
-- Protein today: ${ctx.todayProtein}g
-${ctx.calorieData ? `- Daily calorie goal: ${ctx.calorieData.goalCalories || ctx.calorieData.maintenanceCalories || 'not set'} kcal` : ''}
-${ctx.todayLog.length > 0 ? `- Foods logged: ${ctx.todayLog.map(m => m?.name || m?.food).filter(Boolean).join(', ')}` : '- No food logged today'}
+- Calories consumed today: ${ctx?.todayCalories || 0} kcal
+- Protein today: ${ctx?.todayProtein || 0}g
+${ctx?.calorieData ? `- Daily calorie goal: ${ctx.calorieData.goalCalories || ctx.calorieData.maintenanceCalories || 'not set'} kcal` : ''}
+${todayLog.length > 0 ? `- Foods logged: ${todayLog.map(m => m?.name || m?.food).filter(Boolean).join(', ')}` : '- No food logged today'}
 
 OTHER:
-- Water tracker in use: ${ctx.waterIntake ? 'yes' : 'no'}
-- Progress photos: ${ctx.progressPhotos}
-- Body analyses saved: ${ctx.savedAnalyses.length}
+- Water tracker in use: ${ctx?.waterIntake ? 'yes' : 'no'}
+- Progress photos: ${ctx?.progressPhotos || 0}
 
 RESPONSE RULES:
 1. Be conversational and direct — like a real coach texting them
@@ -238,7 +239,6 @@ export default function AIAssistant() {
   const { data: apiWorkouts } = useApi('/workouts')
   const { data: apiMeals } = useApi('/meals')
   const { data: apiWaterToday } = useApi('/water/today')
-  const { data: apiBodyAnalyses } = useApi('/body-analysis')
   const [lastRequestTime, setLastRequestTime] = useState(0)
   const messagesEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -289,14 +289,11 @@ export default function AIAssistant() {
       todayCalories,
       todayProtein,
       progressPhotos: localCtx.progressPhotos || 0,
-      savedAnalyses: Array.isArray(apiBodyAnalyses) && apiBodyAnalyses.length > 0
-        ? apiBodyAnalyses
-        : (localCtx.savedAnalyses || []),
       raw: {
         dailyMeals: (localCtx.raw?.dailyMeals || []).slice(0, 5),
       },
     }
-  }, [localCtx, apiUser, apiWorkouts, apiMeals, apiWaterToday, apiBodyAnalyses])
+  }, [localCtx, apiUser, apiWorkouts, apiMeals, apiWaterToday])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })

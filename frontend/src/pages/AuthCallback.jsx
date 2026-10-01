@@ -22,8 +22,13 @@ const AuthCallback = () => {
         clearUserData()
         localStorage.setItem('token', token)
         localStorage.setItem('user', JSON.stringify(user))
-        toast.success(`Welcome, ${user.name || 'back'}!`)
-        navigate('/dashboard', { replace: true })
+        const profileCompleted = localStorage.getItem('profileCompleted') === 'true'
+        toast.success(`Welcome, ${user.name || 'Athlete'}!`)
+        if (!profileCompleted) {
+          navigate('/profile?onboarding=true', { replace: true })
+        } else {
+          navigate('/dashboard', { replace: true })
+        }
       } catch (err) {
         console.error('Auth callback parse error:', err)
         toast.error('Google login failed. Please try again.')

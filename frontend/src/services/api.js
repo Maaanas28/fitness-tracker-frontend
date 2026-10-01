@@ -257,35 +257,7 @@ export const removeFavorite = async (exerciseId) => {
 }
 
 // ============================================================
-// BODY ANALYSIS
-// ============================================================
-export const getBodyAnalyses = async () => {
-  return apiRequest('/body-analysis')
-}
 
-export const getBodyAnalysis = async (id) => {
-  return apiRequest(`/body-analysis/${id}`)
-}
-
-export const saveBodyAnalysis = async (data) => {
-  return apiRequest('/body-analysis', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-}
-
-export const updateBodyAnalysis = async (id, data) => {
-  return apiRequest(`/body-analysis/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-}
-
-export const deleteBodyAnalysis = async (id) => {
-  return apiRequest(`/body-analysis/${id}`, { method: 'DELETE' })
-}
 
 // ============================================================
 // CALCULATIONS
@@ -348,11 +320,6 @@ export default {
   getFavorites,
   addFavorite,
   removeFavorite,
-  getBodyAnalyses,
-  getBodyAnalysis,
-  saveBodyAnalysis,
-  updateBodyAnalysis,
-  deleteBodyAnalysis,
   getCalculations,
   getCalculationsByType,
   saveCalculation,

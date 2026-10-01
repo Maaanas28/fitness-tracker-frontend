@@ -1,57 +1,72 @@
-﻿import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { 
-  ArrowLeft, Plus, Trash2, Radio, BarChart3, Flame, Database, Activity,
-  Sparkles, ChefHat, X, RefreshCw
+  ArrowLeft, Plus, Trash2, BarChart3, Flame, Activity,
+  Sparkles, ChefHat, X, RefreshCw, Check, Search
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, Cell, ReferenceLine 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer, ReferenceLine 
 } from 'recharts'
 import { useState, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { DietSkeleton } from '../components/LoadingSkeleton'
 import { EmptyState } from '../components/EmptyState'
 import { useApi, apiPost, apiDelete } from '../hooks/useApi'
-
-const UI_THEME_KEY = 'uiColorTheme'
-const UI_THEMES = {
-  ice: { page: 'linear-gradient(120deg, #0a0f1f 0%, #0f172a 35%, #111827 65%, #0b1020 100%)', accent: '#7dd3fc' },
-  copper: { page: 'linear-gradient(120deg, #1b110a 0%, #2a170f 38%, #3a1d12 70%, #1b110a 100%)', accent: '#fb923c' },
-  mint: { page: 'linear-gradient(120deg, #041612 0%, #06261f 35%, #0c342a 70%, #041612 100%)', accent: '#2dd4bf' },
-  crimson: { page: 'linear-gradient(120deg, #1a0b13 0%, #2b0f1d 35%, #3a1228 70%, #1a0b13 100%)', accent: '#fb7185' },
-}
-
-const MATTE = {
-  panel: 'linear-gradient(155deg, rgba(255,255,255,0.08) 0%, rgba(26,32,44,0.92) 30%, rgba(9,12,18,0.98) 100%)',
-  tile: 'linear-gradient(150deg, rgba(255,255,255,0.07) 0%, rgba(16,22,33,0.95) 45%, rgba(6,9,14,1) 100%)',
-  border: 'rgba(255,255,255,0.18)',
-  borderSoft: 'rgba(255,255,255,0.12)',
-}
+import { generateWithAI } from '../utils/ai'
 
 const AI_MEAL_LIMIT = 20
 
-// Custom cyberpunk tooltip
-const CustomTooltip = ({ active, payload, label, calorieGoal, accent }) => {
+// ─── CUSTOM DARK TOOLTIP ───────────────────────────────────────────────────
+const CustomTooltip = ({ active, payload, label, calorieGoal }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-xl p-4 backdrop-blur-sm" style={{ background: 'rgba(5,7,10,0.94)', border: `1px solid ${MATTE.borderSoft}` }}>
-      <p className="font-bold text-sm mb-2" style={{ color: accent }}>{label}</p>
+    <div className="rounded-2xl p-4 bg-[#141419] text-white font-mono text-xs shadow-2xl border-none">
+      <p className="font-bold text-sm mb-2 text-cyan-400">{label}</p>
       <div className="space-y-1.5">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ background: accent }} />
-          <span className="text-xs text-gray-300">Calories:</span>
-          <span className="font-bold" style={{ color: accent }}>{payload[0]?.value?.toLocaleString() || 0} kcal</span>
+          <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+          <span className="text-zinc-400">Calories:</span>
+          <span className="font-bold text-cyan-300">{payload[0]?.value?.toLocaleString() || 0} kcal</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-gradient-to-r from-amber-400 to-orange-500" />
-          <span className="text-xs text-gray-300">Protein:</span>
+          <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+          <span className="text-zinc-400">Protein:</span>
           <span className="font-bold text-amber-300">{payload[1]?.value || 0}g</span>
         </div>
       </div>
-      <div className="mt-2 px-2 py-1 rounded text-[10px] font-bold" style={{ color: accent, background: 'rgba(255,255,255,0.04)' }}>
+      <div className="mt-2.5 pt-2 text-[10px] text-zinc-500 border-t border-white/5">
         TARGET: {Number(calorieGoal || 2500).toLocaleString()} kcal
       </div>
+    </div>
+  )
+}
+
+// ─── RING PROGRESS COMPONENT ─────────────────────────────────────────────────
+const RingProgress = ({ pct, size = 110, strokeWidth = 8, color = "#3b82f6", label, value, sublabel }) => {
+  const r = (size - strokeWidth * 2) / 2
+  const circ = 2 * Math.PI * r
+  const dash = (Math.min(100, Math.max(0, pct)) / 100) * circ
+
+  return (
+    <div className="flex flex-col items-center select-none">
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="rotate-[-90deg]">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={strokeWidth} />
+          <motion.circle
+            cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
+            strokeDasharray={`${dash} ${circ}`} strokeLinecap="round"
+            initial={{ strokeDasharray: `0 ${circ}` }}
+            animate={{ strokeDasharray: `${dash} ${circ}` }}
+            transition={{ duration: 1.5, ease: [0.25, 0.1, 0.25, 1] }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-xl font-bold text-white tracking-tight" style={{ fontFamily: 'Kanit' }}>{value}</span>
+          {sublabel && <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">{sublabel}</span>}
+        </div>
+      </div>
+      <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400 mt-2.5">{label}</span>
     </div>
   )
 }
@@ -59,11 +74,9 @@ const CustomTooltip = ({ active, payload, label, calorieGoal, accent }) => {
 function DietTracker() {
   const navigate = useNavigate()
   const { data: apiMeals, loading: mealsLoading, refetch: refetchMeals } = useApi('/meals')
-  const [themeName] = useState(() => localStorage.getItem(UI_THEME_KEY) || 'mint')
-  const theme = UI_THEMES[themeName] || UI_THEMES.mint
   const [isLoading, setIsLoading] = useState(true)
-  
-  // Load nutrition goals from Calculator
+
+  // Load nutrition goals
   const [nutritionGoals] = useState(() => {
     const saved = localStorage.getItem('userCalorieData')
     const profile = JSON.parse(localStorage.getItem('userProfile') || '{}')
@@ -82,7 +95,6 @@ function DietTracker() {
       }
     }
     
-    // Fallback based on weight if available
     const weight = profile.currentWeight || 70
     return {
       calories: 2500,
@@ -94,6 +106,8 @@ function DietTracker() {
 
   const CALORIE_GOAL = nutritionGoals.calories
   const PROTEIN_GOAL = nutritionGoals.protein
+  const CARBS_GOAL = nutritionGoals.carbs
+  const FATS_GOAL = nutritionGoals.fats
 
   const [localTodayLog, setLocalTodayLog] = useState(() => {
     const saved = localStorage.getItem('todayLog')
@@ -113,7 +127,7 @@ function DietTracker() {
   }, [localTodayLog])
 
   useEffect(() => {
-    setTimeout(() => setIsLoading(false), 1000)
+    setTimeout(() => setIsLoading(false), 600)
   }, [])
 
   const todayStr = new Date().toISOString().split('T')[0]
@@ -154,6 +168,7 @@ function DietTracker() {
     )
   }, [todayApiLog, localTodayLog, todayStr])
 
+  // Offline Sync Queue
   useEffect(() => {
     if (!localTodayLog.length) return
 
@@ -244,7 +259,6 @@ function DietTracker() {
   const [aiError, setAiError] = useState(false)
   const [aiRefineInput, setAiRefineInput] = useState('')
   const [aiContext, setAiContext] = useState({ goal: 'maintain', mealType: 'meal' })
-  const [expandedSuggestionIndex, setExpandedSuggestionIndex] = useState(null)
 
   const totals = useMemo(() => {
     return todayLog.reduce((acc, item) => ({
@@ -253,8 +267,8 @@ function DietTracker() {
     }), { calories: 0, protein: 0 })
   }, [todayLog])
 
-  const calProgress = Math.min((totals.calories / CALORIE_GOAL) * 100, 100)
-  const proProgress = Math.min((totals.protein / PROTEIN_GOAL) * 100, 100)
+  const calProgress = Math.min(Math.round((totals.calories / CALORIE_GOAL) * 100), 100)
+  const proProgress = Math.min(Math.round((totals.protein / PROTEIN_GOAL) * 100), 100)
 
   const getGoalAndMealType = () => {
     const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}')
@@ -277,6 +291,168 @@ function DietTracker() {
     return { userGoal, mealType }
   }
 
+// ─── DIVERSE REAL-WORLD MEAL DATABASE (ALWAYS VISIBLE PREPARATION STEPS) ───
+const REAL_MEAL_DATABASE = [
+  { 
+    name: 'Scrambled Eggs & Avocado Toast', 
+    calories: 420, 
+    protein: 26, 
+    description: '3 farm-fresh eggs on sourdough toast with sliced avocado & chili flakes',
+    instructions: [
+      'Toast 2 slices of artisanal sourdough bread',
+      'Whisk 3 eggs with sea salt & cracked black pepper',
+      'Scramble gently over low heat in grass-fed butter',
+      'Mash fresh avocado onto toast and top with eggs & chili flakes'
+    ]
+  },
+  { 
+    name: 'Teriyaki Salmon Rice Bowl', 
+    calories: 540, 
+    protein: 42, 
+    description: 'Pan-seared Atlantic salmon with jasmine rice, edamame & sesame glaze',
+    instructions: [
+      'Season salmon fillet with lemon & black pepper',
+      'Sear skin-side down in hot skillet for 4 mins, flip for 3 mins',
+      'Brush with low-sodium teriyaki glaze',
+      'Serve over steamed jasmine rice with edamame & toasted sesame'
+    ]
+  },
+  { 
+    name: 'Grilled Chicken Caesar Wrap', 
+    calories: 460, 
+    protein: 38, 
+    description: 'Flame-grilled chicken breast, romaine lettuce & light Caesar dressing',
+    instructions: [
+      'Grill seasoned chicken breast until cooked through (165°F)',
+      'Slice chicken into thin tender strips',
+      'Toss crisp romaine lettuce with light Caesar dressing & parmesan',
+      'Wrap tightly in a spinach tortilla'
+    ]
+  },
+  { 
+    name: 'Ribeye Steak & Sweet Potatoes', 
+    calories: 620, 
+    protein: 48, 
+    description: 'Grass-fed ribeye steak with roasted sweet potato wedges & green beans',
+    instructions: [
+      'Toss sweet potato wedges in olive oil & paprika, bake at 400°F for 25 mins',
+      'Sear ribeye in cast-iron skillet for 3-4 mins per side with garlic butter',
+      'Sauté green beans in remaining pan drippings',
+      'Rest steak 5 minutes before slicing and serving'
+    ]
+  },
+  { 
+    name: 'Greek Yogurt Berry Crunch', 
+    calories: 290, 
+    protein: 28, 
+    description: 'Whole milk Greek yogurt with fresh blueberries, honey & granola',
+    instructions: [
+      'Scoop 1 cup of plain Greek yogurt into a bowl',
+      'Layer with fresh blueberries and organic wildflower honey',
+      'Top with toasted almond granola & chia seeds for crisp crunch'
+    ]
+  },
+  { 
+    name: 'Turkey & Spinach Omelette', 
+    calories: 330, 
+    protein: 35, 
+    description: 'Lean ground turkey, baby spinach, cherry tomatoes & feta cheese',
+    instructions: [
+      'Brown 100g lean ground turkey in a non-stick skillet',
+      'Whisk 3 eggs, pour over turkey with baby spinach & halved tomatoes',
+      'Cook until set, sprinkle with crumbled feta cheese and fold in half'
+    ]
+  },
+  { 
+    name: 'Chicken Shawarma Power Bowl', 
+    calories: 510, 
+    protein: 45, 
+    description: 'Marinated chicken thigh, brown rice, hummus & cucumber tzatziki',
+    instructions: [
+      'Marinate chicken thigh in cumin, coriander, paprika & lemon juice',
+      'Grill or roast chicken until charred and juicy',
+      'Assemble bowl with brown rice, sliced chicken, dollop of hummus & tzatziki'
+    ]
+  },
+  { 
+    name: 'Cottage Cheese Oat Pancakes', 
+    calories: 380, 
+    protein: 30, 
+    description: 'High-protein oat pancakes topped with sliced banana & maple syrup',
+    instructions: [
+      'Blend 1/2 cup cottage cheese, 1/2 cup oats, 2 eggs & vanilla extract',
+      'Pour batter onto hot greased griddle',
+      'Cook until bubbles form, flip and cook until golden brown',
+      'Top with fresh banana slices and warm pure maple syrup'
+    ]
+  },
+  { 
+    name: 'Tuna Poke & Quinoa Bowl', 
+    calories: 430, 
+    protein: 36, 
+    description: 'Fresh yellowfin tuna, quinoa, cucumber, mango & ponzu dressing',
+    instructions: [
+      'Dice sushi-grade yellowfin tuna into clean bite-sized cubes',
+      'Toss tuna with low-sodium soy sauce, sesame oil & green onion',
+      'Assemble bowl over fluffy cooked quinoa with cucumber & diced mango',
+      'Drizzle with citrus ponzu sauce and sprinkle toasted sesame seeds'
+    ]
+  },
+  { 
+    name: 'Beef Burrito Protein Bowl', 
+    calories: 580, 
+    protein: 44, 
+    description: 'Seasoned lean minced beef, black beans, brown rice, salsa & guacamole',
+    instructions: [
+      'Sauté 93/7 lean ground beef with taco spices & garlic',
+      'Warm black beans and sweet corn kernels',
+      'Base bowl with cilantro lime brown rice, seasoned beef & black beans',
+      'Top with fresh tomato salsa, chopped cilantro & guacamole'
+    ]
+  },
+  { 
+    name: 'Pan-Seared Cod & Asparagus', 
+    calories: 370, 
+    protein: 40, 
+    description: 'Fresh cod fillet with lemon herb butter and roasted asparagus spears',
+    instructions: [
+      'Pat cod fillet dry and season lightly with lemon pepper seasoning',
+      'Pan-fry cod in olive oil for 3-4 mins per side until flaky',
+      'Roast fresh asparagus spears with olive oil at 400°F for 12 mins',
+      'Spoon melted lemon herb butter over cod before serving'
+    ]
+  },
+  { 
+    name: 'Mediterranean Chicken Pasta', 
+    calories: 560, 
+    protein: 44, 
+    description: 'Whole wheat penne, grilled chicken, cherry tomatoes & kalamata olives',
+    instructions: [
+      'Boil whole wheat penne until al dente',
+      'Sauté diced grilled chicken breast with garlic & cherry tomatoes in olive oil',
+      'Toss pasta with chicken, tomatoes, sliced kalamata olives & fresh basil',
+      'Garnish with grated parmesan cheese'
+    ]
+  }
+]
+
+function getRandomMealSelection(count = 6, query = '') {
+  let list = [...REAL_MEAL_DATABASE]
+  if (query && typeof query === 'string' && query.trim()) {
+    const q = query.toLowerCase().trim()
+    const filtered = list.filter((m) =>
+      m.name.toLowerCase().includes(q) ||
+      m.description.toLowerCase().includes(q) ||
+      (Array.isArray(m.instructions) && m.instructions.some((i) => i.toLowerCase().includes(q)))
+    )
+    if (filtered.length > 0) {
+      list = filtered
+    }
+  }
+  const shuffled = [...list].sort(() => 0.5 - Math.random())
+  return shuffled.slice(0, count)
+}
+
   const normalizeAIMeals = (raw) => {
     const arr = Array.isArray(raw) ? raw : []
     return arr
@@ -291,7 +467,7 @@ function DietTracker() {
               .split(/\n|\.|\d+\)/)
               .map((s) => s.trim())
               .filter(Boolean)
-              .slice(0, 8),
+              .slice(0, 6)
       }))
       .filter((item) => item.name && item.calories > 0)
       .slice(0, AI_MEAL_LIMIT)
@@ -306,210 +482,61 @@ function DietTracker() {
 
     const remainingCalories = Math.max(CALORIE_GOAL - totals.calories, 0)
     const remainingProtein = Math.max(PROTEIN_GOAL - totals.protein, 0)
-    const previousNames = aiSuggestions.map((item) => item.name).filter(Boolean).join(', ')
 
-    const goalInstruction = userGoal === 'weight_loss'
-      ? 'Prioritize low-calorie, high-satiety meals with lean protein and fiber-rich foods.'
-      : userGoal === 'muscle_gain'
-        ? 'Prioritize high-protein meals with quality carbs to support training performance and recovery.'
-        : 'Provide balanced meals with moderate calories and good macro quality.'
-
-    const userConstraintBlock = customRequest
-      ? `User requested custom preference: ${customRequest}`
-      : 'No extra preference provided.'
-
-    const excludeBlock = previousNames
-      ? `Avoid repeating these previously suggested foods: ${previousNames}`
-      : 'No previous suggestions to avoid.'
-
-    const prompt = `Create ${AI_MEAL_LIMIT} different ${mealType} food options for a user with goal ${userGoal.replace('_', ' ')}.
-
-Daily targets remaining:
-- calories left: ${Math.round(remainingCalories)}
-- protein left: ${Math.round(remainingProtein)}
-
-${goalInstruction}
-${userConstraintBlock}
-${excludeBlock}
-
-Return ONLY valid JSON array with this shape:
-[
-  {
-    "name": "Meal Name",
-    "calories": 430,
-    "protein": 32,
-    "description": "short ingredients and why this fits goal",
-    "instructions": ["Step 1", "Step 2", "Step 3", "Step 4"]
-  }
-]
-
-Rules:
-- Give diverse options across chicken, fish, eggs, dairy, tofu, legumes, grains, wraps, salads, bowls, smoothies where relevant.
-- Keep realistic calories and protein values.
-- Do not include markdown, comments, or extra text.`
+    const prompt = `Create ${AI_MEAL_LIMIT} different delicious ${mealType} food options for a user with fitness goal ${userGoal.replace('_', ' ')}.
+Daily targets remaining: calories left: ${Math.round(remainingCalories)}, protein left: ${Math.round(remainingProtein)}.
+${customRequest ? `User preference / search filter: MUST include or focus on ${customRequest}` : ''}
+Make meals sound delicious, natural, and realistic. Random seed: ${Date.now()}.
+Return ONLY valid JSON array:
+[{"name": "Meal Name", "calories": 430, "protein": 32, "description": "Short appetizing description", "instructions": ["Step 1", "Step 2", "Step 3"]}]`
 
     try {
-      const aiResponse = await apiPost('/ai/chat', {
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.75,
-        max_tokens: 3200,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a nutrition recommendation assistant. Always return strict JSON only.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-      })
-
-      const content = aiResponse?.choices?.[0]?.message?.content
-      if (!content) throw new Error('Empty AI response')
-
-      const jsonMatch = String(content).match(/\[[\s\S]*\]/)
-      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : content)
+      const rawText = await generateWithAI(prompt, 'meal')
+      const jsonMatch = String(rawText).match(/\[[\s\S]*\]/)
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawText)
       const normalized = normalizeAIMeals(parsed)
 
-      if (!normalized.length) {
-        throw new Error('No valid meal suggestions from AI')
+      if (normalized.length > 0) {
+        let filtered = normalized
+        if (customRequest && customRequest.trim()) {
+          const q = customRequest.toLowerCase().trim()
+          const matched = normalized.filter((m) =>
+            m.name.toLowerCase().includes(q) ||
+            m.description.toLowerCase().includes(q)
+          )
+          if (matched.length > 0) filtered = matched
+        }
+        const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, 6)
+        setAiSuggestions(shuffled)
+      } else {
+        throw new Error('No valid meals returned')
       }
-
-      setAiSuggestions(normalized)
-      setExpandedSuggestionIndex(null)
-      setShowAISuggestions(true)
-    } catch (error) {
-      console.error('AI suggestion failed:', error)
-      setAiError(true)
-      const fallbackSuggestions = getSmartFallbackMeals(userGoal, mealType, remainingCalories, remainingProtein)
-      setAiSuggestions(fallbackSuggestions)
-      setExpandedSuggestionIndex(null)
-      setShowAISuggestions(true)
+    } catch (err) {
+      console.warn('Using dynamic real-world meal shuffle with query:', err)
+      setAiSuggestions(getRandomMealSelection(6, customRequest))
     } finally {
+      setShowAISuggestions(true)
       setIsLoadingAI(false)
     }
   }
 
-  // Smart fallback meals based on goal
-  const getSmartFallbackMeals = (goal, mealType, remainingCals, remainingProtein) => {
-    const maxCal = Math.min(remainingCals, 700)
-    
-    if (goal === 'weight_loss') {
-      return [
-        { 
-          name: 'Lean Protein Salad', 
-          calories: Math.min(350, maxCal), 
-          protein: Math.min(30, remainingProtein), 
-          description: 'Grilled chicken breast on mixed greens with cucumber, tomatoes, and light vinaigrette' 
-          ,instructions: ['Season chicken with salt and pepper', 'Grill chicken 5-6 min per side', 'Chop greens and vegetables', 'Slice chicken and toss with salad and vinaigrette']
-        },
-        { 
-          name: 'Vegetable Stir-fry', 
-          calories: Math.min(300, maxCal), 
-          protein: Math.min(20, remainingProtein), 
-          description: 'Mixed vegetables with tofu or shrimp in light soy sauce, served with a small portion of brown rice',
-          instructions: ['Heat pan with a little oil', 'Stir-fry tofu or shrimp for 3-4 minutes', 'Add mixed vegetables and cook until crisp-tender', 'Add soy sauce and serve with brown rice']
-        },
-        { 
-          name: 'Greek Yogurt Bowl', 
-          calories: Math.min(250, maxCal), 
-          protein: Math.min(25, remainingProtein), 
-          description: 'Non-fat Greek yogurt with fresh berries and a sprinkle of almonds',
-          instructions: ['Add Greek yogurt to a bowl', 'Top with mixed berries', 'Sprinkle chopped almonds', 'Serve chilled']
-        },
-        { name: 'Egg White Scramble', calories: Math.min(280, maxCal), protein: Math.min(26, remainingProtein), description: 'Egg whites with spinach and tomatoes', instructions: ['Whisk egg whites with seasoning', 'Saute spinach and tomatoes for 2 minutes', 'Add egg whites and scramble until set', 'Serve immediately'] },
-        { name: 'Tofu Veggie Bowl', calories: Math.min(320, maxCal), protein: Math.min(24, remainingProtein), description: 'Tofu, peppers, broccoli, and light sauce', instructions: ['Press and cube tofu', 'Pan-sear tofu until golden', 'Steam or stir-fry vegetables', 'Mix with light sauce and serve'] },
-        { name: 'Shrimp Zucchini Stir-fry', calories: Math.min(300, maxCal), protein: Math.min(28, remainingProtein), description: 'Shrimp with zucchini noodles and garlic', instructions: ['Saute garlic in a hot pan', 'Cook shrimp 2-3 minutes until pink', 'Add zucchini noodles and toss 1-2 minutes', 'Season and plate'] },
-        { name: 'Turkey Cucumber Wrap', calories: Math.min(290, maxCal), protein: Math.min(27, remainingProtein), description: 'Lean turkey wrapped with crunchy vegetables', instructions: ['Lay out wrap or lettuce leaves', 'Add sliced turkey and cucumber', 'Add sauce or mustard', 'Roll tightly and cut'] },
-        { name: 'Lentil Soup + Salad', calories: Math.min(330, maxCal), protein: Math.min(22, remainingProtein), description: 'Fiber-rich lentils with fresh greens', instructions: ['Simmer lentils with onions and spices', 'Cook until lentils are tender', 'Prepare side salad', 'Serve soup hot with salad'] }
-      ]
-    } else if (goal === 'muscle_gain') {
-      return [
-        { 
-          name: 'Chicken & Rice Bowl', 
-          calories: Math.min(600, maxCal), 
-          protein: Math.min(45, remainingProtein), 
-          description: 'Grilled chicken breast with brown rice, steamed broccoli, and avocado',
-          instructions: ['Cook rice until fluffy', 'Season and grill chicken breast', 'Steam broccoli until bright green', 'Assemble bowl and top with avocado']
-        },
-        { 
-          name: 'Protein Pasta', 
-          calories: Math.min(550, maxCal), 
-          protein: Math.min(35, remainingProtein), 
-          description: 'Whole wheat pasta with lean ground turkey, marinara sauce, and Parmesan',
-          instructions: ['Boil whole wheat pasta', 'Cook turkey in skillet until browned', 'Add marinara and simmer 5 minutes', 'Combine pasta and sauce, top with Parmesan']
-        },
-        { 
-          name: 'Post-Workout Shake', 
-          calories: Math.min(400, maxCal), 
-          protein: Math.min(40, remainingProtein), 
-          description: 'Whey protein, banana, peanut butter, and oats blended with milk',
-          instructions: ['Add milk to blender', 'Add whey, banana, oats, and peanut butter', 'Blend until smooth', 'Drink fresh']
-        },
-        { name: 'Beef Burrito Bowl', calories: Math.min(640, maxCal), protein: Math.min(42, remainingProtein), description: 'Lean beef, rice, beans, salsa, and avocado', instructions: ['Cook rice and warm beans', 'Saute lean beef with spices', 'Layer rice, beans, and beef in bowl', 'Top with salsa and avocado'] },
-        { name: 'Salmon Sweet Potato Plate', calories: Math.min(620, maxCal), protein: Math.min(38, remainingProtein), description: 'Salmon fillet, sweet potato, and greens', instructions: ['Roast sweet potato cubes', 'Bake or pan-sear salmon', 'Saute greens with garlic', 'Serve all together'] },
-        { name: 'Cottage Cheese Oats', calories: Math.min(520, maxCal), protein: Math.min(34, remainingProtein), description: 'Oats mixed with cottage cheese and berries', instructions: ['Cook oats with water or milk', 'Stir in cottage cheese off heat', 'Top with berries', 'Serve warm'] },
-        { name: 'Turkey Quinoa Bowl', calories: Math.min(580, maxCal), protein: Math.min(41, remainingProtein), description: 'Ground turkey, quinoa, and roasted vegetables', instructions: ['Cook quinoa', 'Brown ground turkey with seasoning', 'Roast mixed vegetables', 'Assemble bowl and drizzle sauce'] },
-        { name: 'Tofu Peanut Noodle Bowl', calories: Math.min(560, maxCal), protein: Math.min(30, remainingProtein), description: 'Tofu, noodles, and peanut-lime sauce', instructions: ['Cook noodles and drain', 'Pan-sear tofu cubes', 'Whisk peanut-lime sauce', 'Toss noodles, tofu, and sauce'] }
-      ]
-    } else {
-      return [
-        { 
-          name: 'Balanced Plate', 
-          calories: Math.min(500, maxCal), 
-          protein: Math.min(30, remainingProtein), 
-          description: 'Grilled salmon, quinoa, and roasted vegetables',
-          instructions: ['Cook quinoa', 'Season and grill salmon', 'Roast vegetables with olive oil', 'Plate together']
-        },
-        { 
-          name: 'Turkey Sandwich', 
-          calories: Math.min(450, maxCal), 
-          protein: Math.min(25, remainingProtein), 
-          description: 'Whole grain bread with turkey, avocado, spinach, and side of fruit',
-          instructions: ['Toast whole grain bread', 'Layer turkey, spinach, and avocado', 'Add seasoning or mustard', 'Serve with fresh fruit']
-        },
-        { 
-          name: 'Buddha Bowl', 
-          calories: Math.min(550, maxCal), 
-          protein: Math.min(20, remainingProtein), 
-          description: 'Mixed grains, chickpeas, roasted sweet potatoes, kale, and tahini dressing',
-          instructions: ['Cook grains and roast sweet potato cubes', 'Warm chickpeas with spices', 'Massage kale with lemon', 'Assemble and drizzle tahini dressing']
-        },
-        { name: 'Egg Avocado Toast', calories: Math.min(430, maxCal), protein: Math.min(22, remainingProtein), description: 'Whole grain toast, eggs, avocado, and greens', instructions: ['Toast bread', 'Cook eggs to preference', 'Mash avocado with salt and lemon', 'Assemble toast and add greens'] },
-        { name: 'Shrimp Rice Bowl', calories: Math.min(500, maxCal), protein: Math.min(30, remainingProtein), description: 'Shrimp, rice, peppers, and herbs', instructions: ['Cook rice', 'Saute shrimp and peppers', 'Season with herbs and lemon', 'Serve over rice'] },
-        { name: 'Chicken Hummus Wrap', calories: Math.min(470, maxCal), protein: Math.min(31, remainingProtein), description: 'Chicken breast, hummus, and fresh vegetables', instructions: ['Warm wrap', 'Spread hummus', 'Add cooked sliced chicken and vegetables', 'Roll and slice'] },
-        { name: 'Bean & Veggie Chili', calories: Math.min(460, maxCal), protein: Math.min(24, remainingProtein), description: 'Mixed beans, tomatoes, and peppers', instructions: ['Saute onions and peppers', 'Add beans, tomatoes, and spices', 'Simmer 20 minutes', 'Serve hot'] },
-        { name: 'Yogurt Nut Fruit Bowl', calories: Math.min(390, maxCal), protein: Math.min(23, remainingProtein), description: 'Greek yogurt with fruit and mixed nuts', instructions: ['Add yogurt to bowl', 'Top with chopped fruit', 'Sprinkle nuts and seeds', 'Serve chilled'] }
-      ]
-    }
-  }
-
   const handleAddEntry = async () => {
-    if (!entry.name) {
-      toast.error('Please enter a food name')
+    if (!entry.name || !entry.calories) {
+      toast.error('Enter food name and calories')
       return
     }
-    if (!entry.calories) {
-      toast.error('Please enter calories')
-      return
-    }
-    
+
     const newEntry = {
-      id: Date.now(),
-      name: entry.name.toUpperCase().replace(/\s+/g, '_'),
+      id: Date.now() + Math.random(),
+      name: entry.name.trim().toUpperCase(),
       calories: parseInt(entry.calories),
-      protein: parseInt(entry.protein) || Math.round(parseInt(entry.calories) * 0.25),
+      protein: parseInt(entry.protein) || Math.round(parseInt(entry.calories) * 0.2),
       carbs: 0,
       fat: 0,
       date: todayStr,
       mealType: 'snack',
       createdAt: new Date().toISOString(),
-      time: new Date().toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-      })
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
     }
 
     const saved = await apiPost('/meals', {
@@ -529,7 +556,7 @@ Rules:
     }
 
     setEntry({ name: '', calories: '', protein: '' })
-    toast.success('Food added!')
+    toast.success('Food logged!')
   }
 
   const handleRemoveEntry = async (item) => {
@@ -541,10 +568,11 @@ Rules:
       }
     }
     setLocalTodayLog((prev) => prev.filter((t) => t.id !== item.id))
+    toast.success('Entry removed')
   }
 
   const handleClearSession = async () => {
-    if (window.confirm('Clear all entries for today?')) {
+    if (window.confirm('Clear all meal entries for today?')) {
       const failedServerDeletes = []
 
       if (todayApiLog.length > 0) {
@@ -570,7 +598,7 @@ Rules:
         await refetchMeals()
 
         if (results.some((ok) => !ok)) {
-          toast.error('Some server entries could not be cleared and will retry sync')
+          toast.error('Some entries could not be cleared on server')
         }
       }
 
@@ -579,359 +607,391 @@ Rules:
         return [...failedServerDeletes, ...keepOtherDays]
       })
 
-      toast.success('Session cleared')
+      toast.success('Today\'s entries cleared')
     }
   }
 
-  const handleFinalizeSession = () => {
-    toast.success(
-      `Session finalized: ${totals.calories.toLocaleString()} kcal, ${totals.protein}g protein`,
-      { duration: 3500 }
-    )
-  }
-
-  const chartMargins = { top: 20, right: 30, left: 20, bottom: 5 }
-  const axisStyle = { fontSize: 11, fill: '#555' }
-  const gridStyle = { stroke: '#1a1a1a', strokeDasharray: '3 3' }
-
   if (isLoading || (mealsLoading && localTodayLog.length === 0)) {
     return (
-      <div className="min-h-screen p-8" style={{ background: theme.page }}>
+      <div className="min-h-screen bg-[#09090b] p-8">
         <DietSkeleton />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen text-white font-sans overflow-x-hidden flex flex-col" style={{ background: theme.page }}>
-      <div className="fixed inset-0" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-      <div className="fixed -top-40 -right-40 w-[420px] h-[420px] rounded-full blur-3xl opacity-30" style={{ background: theme.accent }} />
-      <div className="fixed -bottom-44 -left-40 w-[380px] h-[380px] rounded-full blur-3xl opacity-20 bg-orange-500" />
-      
-      <header className="h-20 backdrop-blur-xl flex items-center justify-between px-8 z-50" style={{ background: MATTE.panel, borderBottom: `2px solid ${MATTE.border}` }}>
-        <div className="flex items-center gap-6">
-          <button 
+    <div 
+      className="min-h-screen w-full bg-[#09090b] text-[#E4E4E7] select-none pb-16"
+      style={{ fontFamily: "'Kanit', sans-serif" }}
+    >
+      {/* ─── SLEEK HEADER WITH BACK BUTTON ────────────────────────────────────── */}
+      <header className="px-6 md:px-10 pt-6 pb-4 flex items-center justify-between border-b border-white/5">
+        <div className="flex items-center gap-4">
+          <motion.button
             onClick={() => navigate('/dashboard')}
-            className="p-2.5 rounded-lg transition-colors border"
-            style={{ borderColor: MATTE.borderSoft, background: MATTE.tile }}
+            whileHover={{ scale: 1.05, x: -2 }}
+            whileTap={{ scale: 0.95 }}
+            className="p-3 rounded-2xl bg-white/[0.05] hover:bg-white/10 text-white transition-all border-none flex items-center justify-center cursor-pointer"
+            title="Back to Dashboard"
           >
-            <ArrowLeft style={{ color: theme.accent }} size={22} />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Radio className="text-cyan-400" size={28} />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-100 uppercase">
+            <ArrowLeft size={20} />
+          </motion.button>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-black uppercase tracking-wide text-white">
               Diet Tracker
             </h1>
+            <p className="text-xs text-zinc-500 font-mono">Track daily meals & nutrition goals</p>
           </div>
         </div>
-        
-        <div className="flex items-center gap-6">
+
+        <div className="flex items-center gap-4">
           <div className="text-right">
-            <div className="text-3xl font-bold" style={{ color: theme.accent }}>
-              {totals.calories.toLocaleString()}
+            <div className="text-2xl font-black text-white" style={{ fontFamily: 'Kanit' }}>
+              {totals.calories.toLocaleString()} <span className="text-xs font-normal text-zinc-500">/ {CALORIE_GOAL} KCAL</span>
             </div>
-            <div className="text-xs text-zinc-500 mt-0.5">TOTAL KCAL</div>
-          </div>
-          
-          <div className="w-24 h-24 relative">
-            <svg className="w-full h-full -rotate-90">
-              <circle cx="48" cy="48" r="42" fill="none" stroke="#0f172a" strokeWidth="6" />
-              <motion.circle 
-                cx="48" cy="48" r="42" 
-                fill="none" 
-                stroke="url(#calGradient)" 
-                strokeWidth="6"
-                strokeDasharray={2 * Math.PI * 42}
-                initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
-                animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - calProgress/100) }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
-                strokeLinecap="round"
-              />
-              <circle cx="48" cy="48" r="32" fill="none" stroke="#0f172a" strokeWidth="6" />
-              <motion.circle 
-                cx="48" cy="48" r="32" 
-                fill="none" 
-                stroke="url(#proGradient)" 
-                strokeWidth="6"
-                strokeDasharray={2 * Math.PI * 32}
-                initial={{ strokeDashoffset: 2 * Math.PI * 32 }}
-                animate={{ strokeDashoffset: 2 * Math.PI * 32 * (1 - proProgress/100) }}
-                transition={{ duration: 1.2, delay: 0.2, ease: "easeOut" }}
-                strokeLinecap="round"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                {Math.round((calProgress + proProgress)/2)}%
-              </div>
-              <div className="text-[10px] text-zinc-500 mt-0.5">PROGRESS</div>
+            <div className="text-[10px] text-cyan-400 font-mono uppercase tracking-wider">
+              {calProgress}% Daily Goal Reached
             </div>
-            <defs>
-              <linearGradient id="calGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#06b6d4" />
-                <stop offset="100%" stopColor="#3b82f6" />
-              </linearGradient>
-              <linearGradient id="proGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#f97316" />
-                <stop offset="100%" stopColor="#f59e0b" />
-              </linearGradient>
-            </defs>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 md:p-8 lg:px-12 space-y-10 relative z-10 overflow-hidden">
-        <div className="glass-card rounded-sm p-1 lg:ml-10 lg:mr-24 rotate-[-0.35deg]" style={{ border: `2px solid ${MATTE.border}` }}>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+      {/* ─── MAIN CONTENT ────────────────────────────────────────────────────── */}
+      <main className="max-w-7xl mx-auto px-6 md:px-10 pt-8 space-y-8">
+        
+        {/* ─── NUTRITION OVERVIEW CARDS (BORDERLESS DARK GLASS) ───────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {/* Card 1: Calories */}
+          <div className="rounded-[24px] bg-white/[0.03] hover:bg-white/[0.05] p-6 flex flex-col items-center justify-between transition-all border-none">
+            <RingProgress 
+              pct={calProgress} 
+              color="#3b82f6" 
+              label="Calories" 
+              value={`${totals.calories}`} 
+              sublabel="KCAL"
+            />
+            <span className="text-[11px] text-zinc-500 font-mono mt-3">Goal: {CALORIE_GOAL} kcal</span>
+          </div>
+
+          {/* Card 2: Protein */}
+          <div className="rounded-[24px] bg-white/[0.03] hover:bg-white/[0.05] p-6 flex flex-col items-center justify-between transition-all border-none">
+            <RingProgress 
+              pct={proProgress} 
+              color="#f59e0b" 
+              label="Protein" 
+              value={`${totals.protein}g`} 
+              sublabel={`/ ${PROTEIN_GOAL}G`}
+            />
+            <span className="text-[11px] text-zinc-500 font-mono mt-3">Muscle recovery target</span>
+          </div>
+
+          {/* Card 3: Carbs */}
+          <div className="rounded-[24px] bg-white/[0.03] hover:bg-white/[0.05] p-6 flex flex-col items-center justify-between transition-all border-none">
+            <RingProgress 
+              pct={Math.min(100, Math.round((totals.calories * 0.45 / 4 / CARBS_GOAL) * 100))} 
+              color="#06b6d4" 
+              label="Carbohydrates" 
+              value={`${Math.round(totals.calories * 0.45 / 4)}g`} 
+              sublabel={`/ ${CARBS_GOAL}G`}
+            />
+            <span className="text-[11px] text-zinc-500 font-mono mt-3">Energy fuel target</span>
+          </div>
+
+          {/* Card 4: Fats */}
+          <div className="rounded-[24px] bg-white/[0.03] hover:bg-white/[0.05] p-6 flex flex-col items-center justify-between transition-all border-none">
+            <RingProgress 
+              pct={Math.min(100, Math.round((totals.calories * 0.25 / 9 / FATS_GOAL) * 100))} 
+              color="#a78bfa" 
+              label="Healthy Fats" 
+              value={`${Math.round(totals.calories * 0.25 / 9)}g`} 
+              sublabel={`/ ${FATS_GOAL}G`}
+            />
+            <span className="text-[11px] text-zinc-500 font-mono mt-3">Hormonal balance target</span>
+          </div>
+        </div>
+
+        {/* ─── QUICK LOG MEAL INPUT BAR (NEUTRAL DARK GLASS BUTTONS) ──────────── */}
+        <div className="rounded-[24px] bg-white/[0.03] p-5 backdrop-blur-md border-none">
+          <div className="flex flex-col lg:flex-row items-center gap-3">
             <input 
               type="text" 
               value={entry.name} 
               onChange={(e) => setEntry({...entry, name: e.target.value})}
-              placeholder="Food Name" 
-              className="bg-black/35 border rounded-xl px-5 py-4 text-sm placeholder:text-zinc-500 focus:outline-none transition-all md:col-span-2 font-bold tracking-wide"
-              style={{ borderColor: MATTE.borderSoft }}
+              placeholder="Food Name (e.g. Grilled Chicken Bowl)" 
+              className="w-full lg:flex-1 bg-white/[0.04] border-none rounded-2xl px-5 py-3.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none font-medium"
             />
-            <input 
-              type="number" 
-              value={entry.calories} 
-              onChange={(e) => setEntry({...entry, calories: e.target.value})}
-              placeholder="KCAL" 
-              className="bg-black/35 border rounded-xl px-5 py-4 font-bold placeholder:text-zinc-500 focus:outline-none transition-all text-center"
-              style={{ borderColor: MATTE.borderSoft, color: theme.accent }}
-            />
-            <input 
-              type="number" 
-              value={entry.protein} 
-              onChange={(e) => setEntry({...entry, protein: e.target.value})}
-              placeholder="PROTEIN (G)" 
-              className="bg-black/35 border rounded-xl px-5 py-4 font-bold text-amber-400 placeholder:text-zinc-500 focus:outline-none transition-all text-center"
-              style={{ borderColor: MATTE.borderSoft }}
-            />
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-3 w-full lg:w-auto">
+              <input 
+                type="number" 
+                value={entry.calories} 
+                onChange={(e) => setEntry({...entry, calories: e.target.value})}
+                placeholder="KCAL" 
+                className="bg-white/[0.04] border-none rounded-2xl px-4 py-3.5 font-bold text-cyan-400 placeholder:text-zinc-500 focus:outline-none text-center text-sm"
+              />
+              <input 
+                type="number" 
+                value={entry.protein} 
+                onChange={(e) => setEntry({...entry, protein: e.target.value})}
+                placeholder="PROTEIN (G)" 
+                className="bg-white/[0.04] border-none rounded-2xl px-4 py-3.5 font-bold text-amber-400 placeholder:text-zinc-500 focus:outline-none text-center text-sm"
+              />
+            </div>
+            
+            <div className="flex items-center gap-3 w-full lg:w-auto">
               <motion.button
                 whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
+                whileTap={{ scale: 0.97 }}
                 onClick={handleAddEntry}
-                className="flex-1 rounded-xl font-black py-4 text-black transition-all flex items-center justify-center gap-2 uppercase tracking-[0.1em]"
-                style={{ background: theme.accent, border: '2px solid rgba(0,0,0,0.45)', boxShadow: '4px 4px 0 rgba(0,0,0,0.55)' }}
+                className="flex-1 lg:flex-none px-7 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider text-white bg-white/10 hover:bg-white/15 border-none transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Plus size={20} />
-                <span className="hidden md:inline">Add</span>
+                <Plus size={16} />
+                <span>Log Meal</span>
               </motion.button>
               
               <motion.button
                 whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={getAIMealSuggestions}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => getAIMealSuggestions()}
                 disabled={isLoadingAI}
-                className="px-4 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2"
-                style={{ background: 'rgba(255,255,255,0.12)', border: `2px solid ${MATTE.borderSoft}`, boxShadow: '3px 3px 0 rgba(0,0,0,0.5)' }}
+                className="px-5 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider text-zinc-300 bg-white/[0.06] hover:bg-white/10 border-none transition-all flex items-center justify-center gap-2 cursor-pointer"
                 title="Get AI meal suggestions"
               >
                 {isLoadingAI ? (
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                  >
-                    <Sparkles size={20} />
-                  </motion.div>
+                  <RefreshCw size={16} className="animate-spin text-zinc-400" />
                 ) : (
-                  <ChefHat size={20} />
+                  <ChefHat size={16} className="text-zinc-300" />
                 )}
+                <span className="hidden sm:inline">AI Assistant</span>
               </motion.button>
             </div>
           </div>
-          <div className="mt-3 flex items-center justify-between text-[11px] text-zinc-500 px-3">
-            <span>Add foods and track calories/protein for today</span>
-            <span>Live totals</span>
-          </div>
         </div>
 
+        {/* ─── IN-LINE SLIDE-DOWN AI MEAL ASSISTANT PANEL ─────────────────────── */}
         <AnimatePresence>
           {showAISuggestions && (
             <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="glass-card rounded-sm border p-6 relative overflow-hidden lg:ml-24 lg:mr-16 rotate-[0.3deg]"
-              style={{ borderColor: MATTE.border }}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
             >
-              <div className="absolute top-0 right-0 w-40 h-40 bg-purple-600/10 blur-[60px] rounded-full pointer-events-none" />
-              
-              <div className="relative z-10 flex justify-between items-start mb-4">
-                <div className="flex items-center gap-3">
-                  <Sparkles className="text-purple-400" size={24} />
-                  <h3 className="text-xl font-bold text-white">AI Meal Suggestions</h3>
+              <div className="rounded-[28px] bg-white/[0.03] p-6 sm:p-8 space-y-6 border-none">
+                {/* Header */}
+                <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-white/[0.06] text-white">
+                      <Sparkles size={22} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-white uppercase tracking-wide">AI Meal Assistant</h3>
+                      <p className="text-xs text-zinc-400">Tailored for {aiContext.goal.replace('_', ' ')} &bull; {aiContext.mealType}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowAISuggestions(false)}
+                    className="text-zinc-500 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors border-none cursor-pointer"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowAISuggestions(false)}
-                  className="relative z-20 text-slate-500 hover:text-white transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
 
-              <div className="mb-4 rounded-xl border p-3 flex flex-col md:flex-row gap-2" style={{ borderColor: MATTE.borderSoft, background: 'rgba(0,0,0,0.22)' }}>
-                <input
-                  type="text"
-                  value={aiRefineInput}
-                  onChange={(e) => setAiRefineInput(e.target.value)}
-                  placeholder="Ask for different foods (e.g. no eggs, vegetarian, more Indian foods)"
-                  className="flex-1 bg-black/40 border rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none"
-                  style={{ borderColor: MATTE.borderSoft }}
-                />
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => getAIMealSuggestions(aiRefineInput.trim())}
-                  disabled={isLoadingAI}
-                  className="px-4 py-2 rounded-lg font-semibold text-black flex items-center justify-center gap-2"
-                  style={{ background: theme.accent, border: '2px solid rgba(0,0,0,0.45)' }}
-                >
-                  <RefreshCw size={15} />
-                  Different Foods
-                </motion.button>
-              </div>
-
-              <div className="mb-4 text-xs text-zinc-400 flex items-center justify-between">
-                <span>Goal: {aiContext.goal.replace('_', ' ')} | Meal type: {aiContext.mealType}</span>
-                <span>{aiSuggestions.length} suggestions</span>
-              </div>
-
-              {aiError ? (
-                <p className="text-red-400 text-center py-4">Failed to get suggestions. Try again.</p>
-              ) : (
-                <div className="grid md:grid-cols-3 gap-4">
-                  {aiSuggestions.map((suggestion, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="bg-black/40 rounded-xl p-5 border border-purple-500/20 hover:border-purple-500/40 transition-all group"
-                    >
-                      <button
-                        onClick={() => setExpandedSuggestionIndex(expandedSuggestionIndex === index ? null : index)}
-                        className="w-full text-left"
-                      >
-                        <ChefHat size={24} className="text-purple-400 mb-3" />
-                        <h4 className="font-bold text-white mb-2">{suggestion.name}</h4>
-                        <p className="text-xs text-slate-400 mb-3">{suggestion.description}</p>
-                      </button>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-cyan-400">{suggestion.calories} kcal</span>
-                        <span className="text-amber-400">{suggestion.protein}g protein</span>
-                      </div>
-
-                      {expandedSuggestionIndex === index && (
-                        <div className="mt-4 pt-3 border-t border-purple-500/20">
-                          <div className="text-[11px] uppercase tracking-[0.12em] text-purple-300 mb-2">How To Cook</div>
-                          <ol className="text-xs text-zinc-300 space-y-1 list-decimal pl-4">
-                            {(suggestion.instructions && suggestion.instructions.length > 0
-                              ? suggestion.instructions
-                              : ['Prep ingredients', 'Cook using preferred method', 'Assemble and serve'])
-                              .slice(0, 8)
-                              .map((step, stepIndex) => (
-                                <li key={stepIndex}>{step}</li>
-                              ))}
-                          </ol>
-                        </div>
-                      )}
-
-                      <motion.button
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          setEntry({
-                            name: suggestion.name,
-                            calories: suggestion.calories.toString(),
-                            protein: suggestion.protein.toString()
-                          })
-                          setShowAISuggestions(false)
+                {/* Search / Filter Prompt Bar with Search Icon & Enter Key Support */}
+                <div className="space-y-3">
+                  <div className="relative flex items-center gap-3">
+                    <div className="relative flex-1">
+                      <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={aiRefineInput}
+                        onChange={(e) => setAiRefineInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            getAIMealSuggestions(aiRefineInput.trim())
+                          }
                         }}
-                        className="mt-4 w-full py-2 rounded-lg font-semibold text-black"
-                        style={{ background: theme.accent }}
+                        placeholder="Search food or ingredient (e.g. egg, chicken, salmon, high protein)..."
+                        className="w-full bg-white/[0.04] border-none rounded-2xl pl-11 pr-5 py-3.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none font-medium"
+                      />
+                    </div>
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => getAIMealSuggestions(aiRefineInput.trim())}
+                      disabled={isLoadingAI}
+                      className="px-6 py-3.5 rounded-2xl font-bold text-xs uppercase tracking-wider text-white bg-white/10 hover:bg-white/20 transition-all flex items-center gap-2 border-none cursor-pointer"
+                    >
+                      <RefreshCw size={14} className={isLoadingAI ? 'animate-spin' : ''} />
+                      <span>{aiRefineInput.trim() ? 'Search AI' : 'Regenerate'}</span>
+                    </motion.button>
+                  </div>
+
+                  {/* Quick Search Chips */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <span className="text-[11px] font-mono uppercase text-zinc-400 font-bold mr-1">Quick Search:</span>
+                    {[
+                      { label: '🍳 Eggs', query: 'egg' },
+                      { label: '🐔 Chicken', query: 'chicken' },
+                      { label: '🐟 Salmon', query: 'salmon' },
+                      { label: '🥩 Beef', query: 'beef' },
+                      { label: '🫐 Oats & Yogurt', query: 'oats' },
+                      { label: '🥗 Vegan', query: 'vegan' },
+                    ].map((chip) => (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        onClick={() => {
+                          setAiRefineInput(chip.query)
+                          getAIMealSuggestions(chip.query)
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer border-none ${
+                          aiRefineInput === chip.query
+                            ? 'bg-cyan-500/20 text-cyan-300 font-bold'
+                            : 'bg-white/[0.05] hover:bg-white/10 text-zinc-300'
+                        }`}
                       >
-                        Use This Meal
-                      </motion.button>
-                    </motion.div>
-                  ))}
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              )}
+
+                {/* Suggestions 6-Option Responsive Grid */}
+                {aiError ? (
+                  <p className="text-red-400 text-center py-6">Unable to generate suggestions. Please try again.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {aiSuggestions.map((suggestion, index) => (
+                      <div
+                        key={index}
+                        className="rounded-[22px] p-5 bg-white/[0.04] hover:bg-white/[0.07] transition-all flex flex-col justify-between border-none"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-mono text-zinc-400 font-bold uppercase flex items-center gap-1.5">
+                              <ChefHat size={14} className="text-zinc-400" />
+                              Option 0{index + 1}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-base text-white mb-1.5 leading-snug">{suggestion.name}</h4>
+                          <p className="text-xs text-zinc-400 mb-3 leading-relaxed">{suggestion.description}</p>
+                          
+                          <div className="flex justify-between items-center text-xs font-bold py-2 px-3 rounded-xl bg-black/40 mb-3">
+                            <span className="text-cyan-400 font-mono">{suggestion.calories} KCAL</span>
+                            <span className="text-amber-400 font-mono">{suggestion.protein}G PRO</span>
+                          </div>
+
+                          {/* Preparation Steps (ALWAYS VISIBLE) */}
+                          <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5 mb-3">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-bold">Preparation Steps</div>
+                            <ol className="text-xs text-zinc-400 space-y-1 list-decimal pl-4">
+                              {(suggestion.instructions && suggestion.instructions.length > 0
+                                ? suggestion.instructions
+                                : [
+                                    'Prepare fresh ingredients',
+                                    'Season with salt, black pepper & olive oil',
+                                    'Cook using preferred method until ready',
+                                    'Assemble and enjoy your high-protein meal!'
+                                  ]
+                              ).map((step, stepIndex) => (
+                                <li key={stepIndex} className="leading-snug text-zinc-400">{step}</li>
+                              ))}
+                            </ol>
+                          </div>
+                        </div>
+
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                            setEntry({
+                              name: suggestion.name,
+                              calories: suggestion.calories.toString(),
+                              protein: suggestion.protein.toString()
+                            })
+                            setShowAISuggestions(false)
+                            toast.success(`Selected ${suggestion.name}! Click 'Log Meal' to save.`)
+                          }}
+                          className="w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-white/10 hover:bg-white/20 transition-all border-none cursor-pointer mt-2"
+                        >
+                          Use This Meal
+                        </motion.button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="grid lg:grid-cols-12 gap-8">
-          {/* TODAY'S LOG */}
-          <div className="lg:col-span-7 space-y-6 lg:translate-y-6">
+        {/* ─── TODAY'S MEALS LOG & 7-DAY TRENDS ─────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Left Column: Today's Logged Meals */}
+          <div className="lg:col-span-7 space-y-5">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-2xl md:text-3xl font-black uppercase tracking-[0.08em] flex items-center gap-2">
-                  <BarChart3 className="text-cyan-400" size={22} />
-                  Today's Log
+                <h2 className="text-xl font-bold uppercase tracking-wide text-white flex items-center gap-2">
+                  <BarChart3 className="text-cyan-400" size={20} />
+                  Today's Meals
                 </h2>
-                <p className="text-cyan-500/60 text-sm mt-1">Meals added today</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Logged meal history for today</p>
               </div>
-              <span className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 rounded-full text-sm font-mono">
+              <span className="px-3 py-1 bg-white/[0.05] rounded-full text-xs font-mono text-zinc-400">
                 {todayLog.length} ENTRIES
               </span>
             </div>
 
             {todayLog.length === 0 ? (
-              <EmptyState
-                icon={BarChart3}
-                title="No Entries Yet"
-                message="Add your first food entry to start tracking your nutrition."
-              />
+              <div className="rounded-[24px] bg-white/[0.02] p-10 text-center border-none">
+                <EmptyState
+                  icon={BarChart3}
+                  title="No Meals Logged Today"
+                  message="Use the quick bar above or AI Assistant to log your first meal."
+                />
+              </div>
             ) : (
-              <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scroll">
+              <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1 custom-scroll">
                 <AnimatePresence>
                   {todayLog.map((item, i) => (
                     <motion.div
                       key={item._id || item.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="glass-card rounded-sm p-5 border transition-all group"
-                      style={{ borderColor: MATTE.border, boxShadow: '6px 6px 0 rgba(0,0,0,0.5)' }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ delay: i * 0.04 }}
+                      className="rounded-[20px] p-4 bg-white/[0.03] hover:bg-white/[0.06] transition-all flex items-center justify-between border-none group"
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="text-xs text-cyan-500/70 font-mono">{item.time}</div>
-                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                          </div>
-                          <h3 className="font-black text-xl tracking-tight uppercase">{item.name}</h3>
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-9 h-9 rounded-xl bg-white/[0.05] flex items-center justify-center text-zinc-400 font-bold text-xs">
+                          {i + 1}
                         </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="text-[10px] text-zinc-500 font-mono">{item.time}</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          </div>
+                          <h3 className="font-bold text-sm text-white uppercase tracking-wide">{item.name}</h3>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-5">
+                        <div className="text-right">
+                          <span className="text-base font-bold text-cyan-400" style={{ fontFamily: 'Kanit' }}>{item.calories} <span className="text-xs font-normal text-zinc-500">kcal</span></span>
+                          <div className="text-[10px] text-amber-400 font-bold">{item.protein}g protein</div>
+                        </div>
+
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => handleRemoveEntry(item)}
-                          className="text-zinc-500 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                          className="text-zinc-500 hover:text-red-400 p-2 rounded-xl hover:bg-white/[0.05] transition-colors border-none cursor-pointer"
+                          title="Delete entry"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={16} />
                         </motion.button>
-                      </div>
-                      
-                      <div className="mt-4 grid grid-cols-2 gap-4 pt-3 border-t" style={{ borderColor: MATTE.borderSoft }}>
-                        <div>
-                          <div className="text-[11px] text-zinc-500 mb-1">Calories</div>
-                          <div className="text-2xl font-bold" style={{ color: theme.accent }}>
-                            {item.calories.toLocaleString()}
-                          </div>
-                          <div className="text-[11px] text-zinc-500 mt-0.5">kcal</div>
-                        </div>
-                        <div>
-                          <div className="text-[11px] text-zinc-500 mb-1">Protein</div>
-                          <div className="text-2xl font-bold text-amber-400">
-                            {item.protein}
-                          </div>
-                          <div className="text-[11px] text-zinc-500 mt-0.5">grams</div>
-                        </div>
                       </div>
                     </motion.div>
                   ))}
@@ -940,203 +1000,103 @@ Rules:
             )}
           </div>
 
-          {/* BIOMETRICS & HISTORY */}
-          <div className="lg:col-span-5 space-y-8 lg:-translate-y-10">
-            {/* PROGRESS METERS */}
-            <div className="glass-card rounded-sm p-6" style={{ border: `2px solid ${MATTE.border}` }}>
-              <div className="space-y-6">
-                {/* Calories */}
+          {/* Right Column: 7-Day Nutrition Trends Chart */}
+          <div className="lg:col-span-5 space-y-5">
+            <div className="rounded-[24px] bg-white/[0.03] p-6 backdrop-blur-md space-y-5 border-none">
+              <div className="flex items-center justify-between">
                 <div>
-                  <div className="flex justify-between mb-2">
-                    <div>
-                      <div className="text-[11px] text-cyan-500/60 font-mono">DAILY GOAL</div>
-                      <div className="font-bold mt-0.5">Calories</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-xl bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                        {totals.calories.toLocaleString()}
-                      </div>
-                      <div className="text-[11px] text-cyan-500/40">/ {CALORIE_GOAL.toLocaleString()} kcal</div>
-                    </div>
-                  </div>
-                  <div className="h-3 bg-black/40 rounded-full overflow-hidden relative">
-                    <motion.div 
-                      className="h-full bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${calProgress}%` }}
-                      transition={{ duration: 1, ease: "easeOut" }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-                  </div>
-                </div>
-                
-                {/* Protein */}
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <div>
-                      <div className="text-[11px] text-amber-400/60 font-mono">DAILY GOAL</div>
-                      <div className="font-bold mt-0.5">Protein</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-xl text-amber-400">
-                        {totals.protein}
-                      </div>
-                      <div className="text-[11px] text-amber-400/40">/ {PROTEIN_GOAL}g</div>
-                    </div>
-                  </div>
-                  <div className="h-3 bg-black/40 rounded-full overflow-hidden relative">
-                    <motion.div 
-                      className="h-full bg-gradient-to-r from-amber-500 to-orange-600 rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${proProgress}%` }}
-                      transition={{ duration: 1, delay: 0.2, ease: "easeOut" }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* HISTORY CHART */}
-            <div className="glass-card rounded-sm p-5 rotate-[-0.35deg]" style={{ border: `2px solid ${MATTE.border}` }}>
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-black uppercase tracking-[0.08em] flex items-center gap-2">
-                    <Flame className="text-amber-400" size={22} />
+                  <h2 className="text-lg font-bold uppercase tracking-wide text-white flex items-center gap-2">
+                    <Flame className="text-amber-400" size={18} />
                     7-Day Trends
                   </h2>
-                  <p className="text-cyan-500/60 text-sm mt-1">Calories and protein over last 7 days</p>
+                  <p className="text-xs text-zinc-500 mt-0.5">Calorie & protein history</p>
                 </div>
-                <div className="flex gap-2">
-                  <div className="flex items-center gap-1.5 text-[11px]">
-                    <div className="w-2 h-2 rounded-full bg-gradient-to-r from-cyan-400 to-blue-500" />
-                    <span>Calories</span>
+                <div className="flex gap-3 text-[11px] font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-cyan-400" />
+                    <span className="text-zinc-400">Calories</span>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[11px]">
-                    <div className="w-2 h-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500" />
-                    <span>Protein</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                    <span className="text-zinc-400">Protein</span>
                   </div>
                 </div>
               </div>
-              
-              <div className="h-[280px] -mx-3">
-                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <LineChart data={historyData} margin={chartMargins}>
-                    <defs>
-                      <linearGradient id="calArea" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="proArea" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid {...gridStyle} vertical={false} />
-                    <XAxis dataKey="day" {...axisStyle} tickLine={false} axisLine={{ stroke: '#334155' }} />
-                    <YAxis yAxisId="left" {...axisStyle} tickLine={false} axisLine={false} width={45} />
-                    <YAxis yAxisId="right" {...axisStyle} tickLine={false} axisLine={false} orientation="right" width={45} />
-                    <Tooltip content={(props) => <CustomTooltip {...props} calorieGoal={CALORIE_GOAL} accent={theme.accent} />} cursor={{ stroke: theme.accent, strokeDasharray: '3 3' }} />
-                    <ReferenceLine yAxisId="left" y={CALORIE_GOAL} stroke="#06b6d4" strokeDasharray="3 3" label={{ value: 'Target', position: 'insideTopLeft', fill: '#06b6d4', fontSize: 11 }} />
-                    <ReferenceLine yAxisId="right" y={PROTEIN_GOAL} stroke="#f97316" strokeDasharray="3 3" label={{ value: 'Target', position: 'insideTopRight', fill: '#f97316', fontSize: 11 }} />
+
+              {/* Line Chart */}
+              <div className="h-[230px] w-full">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                  <LineChart data={historyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid stroke="rgba(255,255,255,0.03)" vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="day" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="left" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fill: '#71717a', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={(props) => <CustomTooltip {...props} calorieGoal={CALORIE_GOAL} />} />
+                    <ReferenceLine yAxisId="left" y={CALORIE_GOAL} stroke="#3b82f6" strokeDasharray="4 4" strokeOpacity={0.4} />
                     <Line 
                       yAxisId="left" 
                       type="monotone" 
                       dataKey="cals" 
-                      stroke="url(#calArea)" 
-                      strokeWidth={3} 
-                      dot={{ fill: '#06b6d4', strokeWidth: 2, r: 4 }} 
-                      activeDot={{ r: 8 }} 
-                      fill="url(#calArea)" 
-                      fillOpacity={0.4} 
+                      stroke="#3b82f6" 
+                      strokeWidth={2.5} 
+                      dot={{ fill: '#3b82f6', r: 3 }} 
+                      activeDot={{ r: 6 }} 
                     />
                     <Line 
                       yAxisId="right" 
                       type="monotone" 
                       dataKey="pro" 
-                      stroke="url(#proArea)" 
-                      strokeWidth={3} 
-                      dot={{ fill: '#f97316', strokeWidth: 2, r: 4 }} 
-                      activeDot={{ r: 8 }} 
-                      fill="url(#proArea)" 
-                      fillOpacity={0.4} 
+                      stroke="#f59e0b" 
+                      strokeWidth={2} 
+                      dot={{ fill: '#f59e0b', r: 3 }} 
+                      activeDot={{ r: 5 }} 
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              
-              <div className="mt-4 grid grid-cols-2 gap-3 text-center p-3 bg-black/30 rounded-xl">
-                <div>
-                  <div className="text-[11px] text-cyan-500/60">AVG CALORIES</div>
-                  <div className="font-bold mt-1 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                    {Math.round(historyData.reduce((sum, d) => sum + d.cals, 0) / historyData.length).toLocaleString()}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] text-amber-400/60">AVG PROTEIN</div>
-                  <div className="font-bold mt-1 text-amber-400">
-                    {Math.round(historyData.reduce((sum, d) => sum + d.pro, 0) / historyData.length)}g
-                  </div>
-                </div>
+
+              {/* Session Controls */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={handleClearSession}
+                  className="py-3 rounded-2xl font-bold text-xs uppercase tracking-wider text-red-400 bg-white/[0.04] hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 border-none cursor-pointer"
+                >
+                  <Trash2 size={14} />
+                  <span>Clear Day</span>
+                </motion.button>
+                
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => toast.success(`Saved day: ${totals.calories} kcal logged!`)}
+                  className="py-3 rounded-2xl font-bold text-xs uppercase tracking-wider text-white bg-white/10 hover:bg-white/20 transition-all flex items-center justify-center gap-2 border-none cursor-pointer"
+                >
+                  <Check size={14} />
+                  <span>Save Session</span>
+                </motion.button>
               </div>
             </div>
-
-            {/* ACTION BUTTONS WITH CLEAR SESSION */}
-            <div className="space-y-3">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleClearSession}
-                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 rounded-sm font-black py-4 text-white transition-all shadow-lg shadow-red-500/30 flex items-center justify-center gap-2 uppercase tracking-[0.1em]"
-                style={{ border: '2px solid rgba(0,0,0,0.5)', boxShadow: '5px 5px 0 rgba(0,0,0,0.6)' }}
-              >
-                <Trash2 size={18} />
-                Clear Day
-              </motion.button>
-              
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleFinalizeSession}
-                className="w-full bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 rounded-sm font-black py-5 text-white text-lg transition-all shadow-lg shadow-cyan-500/30 uppercase tracking-[0.1em]"
-                style={{ border: '2px solid rgba(0,0,0,0.5)', boxShadow: '5px 5px 0 rgba(0,0,0,0.6)' }}
-              >
-                Save Day
-              </motion.button>
-            </div>
           </div>
+
         </div>
       </main>
 
+      {/* Custom scrollbar */}
       <style>{`
-        .glass-card {
-          background: ${MATTE.panel};
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(12px);
-          box-shadow: 8px 8px 0 rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.1);
-        }
         .custom-scroll::-webkit-scrollbar {
-          width: 8px;
+          width: 5px;
         }
         .custom-scroll::-webkit-scrollbar-track {
-          background: rgba(0,0,0,0.45);
-          border-radius: 10px;
+          background: transparent;
         }
         .custom-scroll::-webkit-scrollbar-thumb {
-          background: ${theme.accent};
+          background: rgba(255,255,255,0.1);
           border-radius: 10px;
-          border: 1px solid rgba(0,0,0,0.5);
-          background-clip: content-box;
         }
         .custom-scroll::-webkit-scrollbar-thumb:hover {
-          filter: brightness(1.12);
-        }
-        @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer {
-          animation: shimmer 2.5s infinite linear;
+          background: rgba(255,255,255,0.25);
         }
       `}</style>
     </div>

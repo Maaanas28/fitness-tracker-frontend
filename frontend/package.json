@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:backend": "cd backend && npm run dev",
+    "dev:backend": "cd ../backend && npm run dev",
     "dev:frontend": "vite",
     "dev:full": "concurrently -k -n \"BACKEND,FRONTEND\" -c \"cyan,magenta\" \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build": "vite build",
