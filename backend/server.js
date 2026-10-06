@@ -61,6 +61,7 @@ const waterRoutes = require('./routes/water')
 const favoriteRoutes = require('./routes/favorites')
 const calculationRoutes = require('./routes/calculations')
 const aiRoutes = require('./routes/ai')
+const bodyAnalysisRoutes = require('./routes/bodyAnalysis')
 
 // Use routes
 app.use('/api/auth', authRoutes)
@@ -71,6 +72,7 @@ app.use('/api/water', waterRoutes)
 app.use('/api/favorites', favoriteRoutes)
 app.use('/api/calculations', calculationRoutes)
 app.use('/api/ai', aiRoutes)
+app.use('/api/body-analysis', bodyAnalysisRoutes)
 
 // Error handling middleware
 app.use((err, req, res, _next) => {

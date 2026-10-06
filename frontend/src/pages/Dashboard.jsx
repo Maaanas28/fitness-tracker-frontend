@@ -312,7 +312,7 @@ const StickyStackCard = ({ children, index, totalCards }) => {
 
 
 // ─── HELPER FUNCTIONS ────────────────────────────────────────────────────────
-function calcBMI(weight, height) {
+function _calcBMI(weight, height) {
   if (!weight || !height) return null
   const h = parseFloat(height) / 100
   const w = parseFloat(weight)
@@ -647,7 +647,7 @@ function Dashboard() {
     try { return JSON.parse(localStorage.getItem('user') || 'null') } catch { return null }
   }, [userProfile])
 
-  const profileAvatar = useMemo(() => {
+  const _profileAvatar = useMemo(() => {
     const localProfile = shouldUseLocalFallback ? (() => { try { return JSON.parse(localStorage.getItem('userProfile') || '{}') } catch { return {} } })() : {}
     const fromData = user?.profileData?.avatar || user?.profileData?.photoUrl || user?.profileData?.image || user?.avatar || user?.avatarUrl || user?.photoUrl || user?.picture || localProfile?.avatar || localProfile?.photoUrl || localProfile?.image
     if (typeof fromData === 'string' && fromData.trim()) return fromData.trim()

@@ -7,6 +7,11 @@ const BACKEND_URL = (process.env.BACKEND_URL || `http://localhost:${PORT}`).repl
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || `${BACKEND_URL}/api/auth/google/callback`
 
 module.exports = function(passport) {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.warn('⚠️ Google OAuth credentials missing in .env. Skipping Google Strategy setup.')
+    return
+  }
+
   passport.use(
     new GoogleStrategy(
       {

@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 import { DietSkeleton } from '../components/LoadingSkeleton'
 import { EmptyState } from '../components/EmptyState'
 import { useApi, apiPost, apiDelete } from '../hooks/useApi'
-import { generateWithAI } from '../utils/ai'
+import { sendAIMessage } from '../services/api'
 
 const AI_MEAL_LIMIT = 20
 
@@ -291,148 +291,210 @@ function DietTracker() {
     return { userGoal, mealType }
   }
 
-// ─── DIVERSE REAL-WORLD MEAL DATABASE (ALWAYS VISIBLE PREPARATION STEPS) ───
+// ─── DIVERSE REAL-WORLD MEAL DATABASE (KEYWORD-TAGGED FOR SMART SEARCH) ───
 const REAL_MEAL_DATABASE = [
-  { 
-    name: 'Scrambled Eggs & Avocado Toast', 
-    calories: 420, 
-    protein: 26, 
+  {
+    name: 'Scrambled Eggs & Avocado Toast',
+    calories: 420, protein: 26,
+    tags: ['egg', 'eggs', 'avocado', 'breakfast', 'vegetarian'],
     description: '3 farm-fresh eggs on sourdough toast with sliced avocado & chili flakes',
-    instructions: [
-      'Toast 2 slices of artisanal sourdough bread',
-      'Whisk 3 eggs with sea salt & cracked black pepper',
-      'Scramble gently over low heat in grass-fed butter',
-      'Mash fresh avocado onto toast and top with eggs & chili flakes'
-    ]
+    instructions: ['Toast 2 slices of sourdough bread', 'Whisk 3 eggs with salt & pepper', 'Scramble gently over low heat in butter', 'Mash avocado on toast and top with eggs & chili flakes']
   },
-  { 
-    name: 'Teriyaki Salmon Rice Bowl', 
-    calories: 540, 
-    protein: 42, 
-    description: 'Pan-seared Atlantic salmon with jasmine rice, edamame & sesame glaze',
-    instructions: [
-      'Season salmon fillet with lemon & black pepper',
-      'Sear skin-side down in hot skillet for 4 mins, flip for 3 mins',
-      'Brush with low-sodium teriyaki glaze',
-      'Serve over steamed jasmine rice with edamame & toasted sesame'
-    ]
+  {
+    name: 'Masala Omelette',
+    calories: 310, protein: 24,
+    tags: ['egg', 'eggs', 'breakfast', 'indian', 'vegetarian'],
+    description: 'Spiced Indian omelette with onion, tomato, green chili & coriander',
+    instructions: ['Whisk 3 eggs with salt and turmeric', 'Sauté diced onion, tomato & green chili in oil', 'Pour eggs over vegetables', 'Cook until golden, garnish with fresh coriander']
   },
-  { 
-    name: 'Grilled Chicken Caesar Wrap', 
-    calories: 460, 
-    protein: 38, 
+  {
+    name: 'Egg Bhurji (Spiced Scrambled Eggs)',
+    calories: 350, protein: 28,
+    tags: ['egg', 'eggs', 'indian', 'breakfast', 'vegetarian'],
+    description: 'Indian-style scrambled eggs with onions, tomatoes, spices & butter',
+    instructions: ['Heat oil, sauté onion, tomato & ginger-garlic paste', 'Add cumin, turmeric, red chili powder', 'Crack in 3 eggs and scramble continuously', 'Finish with fresh coriander and serve with roti']
+  },
+  {
+    name: 'Hard Boiled Eggs & Spinach Salad',
+    calories: 260, protein: 22,
+    tags: ['egg', 'eggs', 'salad', 'low calorie', 'vegetarian'],
+    description: '3 hard boiled eggs with fresh spinach, cherry tomatoes & light dressing',
+    instructions: ['Boil eggs for 10 minutes, cool and peel', 'Arrange spinach leaves with cherry tomatoes', 'Slice eggs and place over salad', 'Drizzle with olive oil and lemon dressing']
+  },
+  {
+    name: 'Grilled Chicken Caesar Wrap',
+    calories: 460, protein: 38,
+    tags: ['chicken', 'wrap', 'lunch'],
     description: 'Flame-grilled chicken breast, romaine lettuce & light Caesar dressing',
-    instructions: [
-      'Grill seasoned chicken breast until cooked through (165°F)',
-      'Slice chicken into thin tender strips',
-      'Toss crisp romaine lettuce with light Caesar dressing & parmesan',
-      'Wrap tightly in a spinach tortilla'
-    ]
+    instructions: ['Grill seasoned chicken breast until cooked through (165°F)', 'Slice chicken into thin strips', 'Toss romaine with Caesar dressing & parmesan', 'Wrap tightly in a spinach tortilla']
   },
-  { 
-    name: 'Ribeye Steak & Sweet Potatoes', 
-    calories: 620, 
-    protein: 48, 
-    description: 'Grass-fed ribeye steak with roasted sweet potato wedges & green beans',
-    instructions: [
-      'Toss sweet potato wedges in olive oil & paprika, bake at 400°F for 25 mins',
-      'Sear ribeye in cast-iron skillet for 3-4 mins per side with garlic butter',
-      'Sauté green beans in remaining pan drippings',
-      'Rest steak 5 minutes before slicing and serving'
-    ]
-  },
-  { 
-    name: 'Greek Yogurt Berry Crunch', 
-    calories: 290, 
-    protein: 28, 
-    description: 'Whole milk Greek yogurt with fresh blueberries, honey & granola',
-    instructions: [
-      'Scoop 1 cup of plain Greek yogurt into a bowl',
-      'Layer with fresh blueberries and organic wildflower honey',
-      'Top with toasted almond granola & chia seeds for crisp crunch'
-    ]
-  },
-  { 
-    name: 'Turkey & Spinach Omelette', 
-    calories: 330, 
-    protein: 35, 
-    description: 'Lean ground turkey, baby spinach, cherry tomatoes & feta cheese',
-    instructions: [
-      'Brown 100g lean ground turkey in a non-stick skillet',
-      'Whisk 3 eggs, pour over turkey with baby spinach & halved tomatoes',
-      'Cook until set, sprinkle with crumbled feta cheese and fold in half'
-    ]
-  },
-  { 
-    name: 'Chicken Shawarma Power Bowl', 
-    calories: 510, 
-    protein: 45, 
+  {
+    name: 'Chicken Shawarma Power Bowl',
+    calories: 510, protein: 45,
+    tags: ['chicken', 'bowl', 'lunch', 'dinner'],
     description: 'Marinated chicken thigh, brown rice, hummus & cucumber tzatziki',
-    instructions: [
-      'Marinate chicken thigh in cumin, coriander, paprika & lemon juice',
-      'Grill or roast chicken until charred and juicy',
-      'Assemble bowl with brown rice, sliced chicken, dollop of hummus & tzatziki'
-    ]
+    instructions: ['Marinate chicken in cumin, coriander, paprika & lemon juice', 'Grill chicken until charred and juicy', 'Assemble bowl with brown rice, sliced chicken', 'Add dollop of hummus & tzatziki']
   },
-  { 
-    name: 'Cottage Cheese Oat Pancakes', 
-    calories: 380, 
-    protein: 30, 
-    description: 'High-protein oat pancakes topped with sliced banana & maple syrup',
-    instructions: [
-      'Blend 1/2 cup cottage cheese, 1/2 cup oats, 2 eggs & vanilla extract',
-      'Pour batter onto hot greased griddle',
-      'Cook until bubbles form, flip and cook until golden brown',
-      'Top with fresh banana slices and warm pure maple syrup'
-    ]
+  {
+    name: 'Butter Chicken (Murgh Makhani)',
+    calories: 480, protein: 40,
+    tags: ['chicken', 'indian', 'dinner', 'curry'],
+    description: 'Tender chicken in a rich creamy tomato-butter sauce with aromatic spices',
+    instructions: ['Marinate chicken in yogurt & spices overnight', 'Grill or roast chicken pieces until charred', 'Simmer in tomato-butter-cream sauce with garam masala', 'Serve hot with naan or basmati rice']
   },
-  { 
-    name: 'Tuna Poke & Quinoa Bowl', 
-    calories: 430, 
-    protein: 36, 
-    description: 'Fresh yellowfin tuna, quinoa, cucumber, mango & ponzu dressing',
-    instructions: [
-      'Dice sushi-grade yellowfin tuna into clean bite-sized cubes',
-      'Toss tuna with low-sodium soy sauce, sesame oil & green onion',
-      'Assemble bowl over fluffy cooked quinoa with cucumber & diced mango',
-      'Drizzle with citrus ponzu sauce and sprinkle toasted sesame seeds'
-    ]
+  {
+    name: 'Chicken Tikka Masala',
+    calories: 450, protein: 42,
+    tags: ['chicken', 'indian', 'dinner', 'curry'],
+    description: 'Smoky grilled chicken in spiced creamy tomato masala gravy',
+    instructions: ['Marinate chicken in yogurt, ginger-garlic, chili & spices', 'Skewer and grill until charred', 'Cook tomato-onion masala with cream', 'Add grilled chicken, simmer 10 mins and serve']
   },
-  { 
-    name: 'Beef Burrito Protein Bowl', 
-    calories: 580, 
-    protein: 44, 
+  {
+    name: 'Chicken Biryani Bowl',
+    calories: 550, protein: 44,
+    tags: ['chicken', 'indian', 'dinner', 'rice'],
+    description: 'Fragrant basmati rice layered with spiced chicken, fried onions & saffron',
+    instructions: ['Marinate chicken in biryani spices and yogurt', 'Cook basmati rice 70% done', 'Layer chicken and rice in pot with fried onions & saffron milk', 'Dum cook on low heat for 25 mins']
+  },
+  {
+    name: 'Grilled Chicken & Sweet Potato',
+    calories: 480, protein: 42,
+    tags: ['chicken', 'dinner', 'high protein'],
+    description: 'Herb-marinated grilled chicken breast with roasted sweet potato & greens',
+    instructions: ['Marinate chicken in olive oil, garlic, lemon & herbs', 'Grill chicken 6-7 mins per side', 'Roast sweet potato cubes at 400°F for 25 mins', 'Serve with steamed green beans']
+  },
+  {
+    name: 'Chicken Soup with Vegetables',
+    calories: 320, protein: 30,
+    tags: ['chicken', 'soup', 'low calorie', 'healthy'],
+    description: 'Hearty chicken broth with shredded chicken, carrots, celery & herbs',
+    instructions: ['Simmer chicken pieces in water with garlic and onion', 'Add diced carrots, celery & bay leaves', 'Shred cooked chicken back into broth', 'Season with pepper and fresh parsley']
+  },
+  {
+    name: 'Paneer Tikka',
+    calories: 380, protein: 28,
+    tags: ['veg', 'vegetarian', 'paneer', 'indian', 'dinner'],
+    description: 'Marinated paneer cubes grilled in tandoor with peppers and onions',
+    instructions: ['Marinate paneer in yogurt, chili, cumin & garam masala', 'Thread onto skewers with bell peppers & onion', 'Grill at high heat until charred spots appear', 'Squeeze lemon and serve with mint chutney']
+  },
+  {
+    name: 'Dal Tadka (Yellow Lentil Curry)',
+    calories: 320, protein: 18,
+    tags: ['veg', 'vegetarian', 'indian', 'dal', 'lentil', 'dinner'],
+    description: 'Creamy yellow lentils tempered with cumin, garlic & red chili butter',
+    instructions: ['Pressure cook yellow lentils until soft', 'Heat ghee, add cumin seeds, garlic & dry red chilies', 'Pour tempering over cooked dal', 'Serve hot with steamed basmati rice or roti']
+  },
+  {
+    name: 'Chana Masala',
+    calories: 360, protein: 16,
+    tags: ['veg', 'vegetarian', 'chickpea', 'indian', 'dinner'],
+    description: 'Spiced chickpea curry in tangy tomato-onion gravy with amchur',
+    instructions: ['Soak and pressure cook chickpeas until soft', 'Cook onion-tomato masala with ginger-garlic paste', 'Add cumin, coriander, amchur & garam masala', 'Add chickpeas, simmer 15 mins and garnish with coriander']
+  },
+  {
+    name: 'Palak Paneer',
+    calories: 400, protein: 26,
+    tags: ['veg', 'vegetarian', 'paneer', 'spinach', 'indian'],
+    description: 'Cottage cheese cubes in smooth spiced spinach gravy',
+    instructions: ['Blanch and blend fresh spinach to smooth puree', 'Cook onion, tomato, ginger-garlic & spices', 'Add spinach puree and bring to simmer', 'Fold in paneer cubes and finish with cream']
+  },
+  {
+    name: 'Mixed Vegetable Stir Fry',
+    calories: 280, protein: 12,
+    tags: ['veg', 'vegetarian', 'stir fry', 'low calorie'],
+    description: 'Colorful vegetables stir-fried in garlic sauce with brown rice',
+    instructions: ['Heat oil in wok over high heat', 'Add garlic, then broccoli, bell peppers, carrots & snap peas', 'Toss in soy sauce, sesame oil & oyster sauce', 'Serve over steamed brown rice']
+  },
+  {
+    name: 'Mushroom & Spinach Omelette',
+    calories: 290, protein: 22,
+    tags: ['veg', 'vegetarian', 'egg', 'eggs', 'mushroom', 'breakfast'],
+    description: 'Fluffy omelette stuffed with sautéed mushrooms and wilted spinach',
+    instructions: ['Sauté sliced mushrooms in butter until golden', 'Add baby spinach and cook until wilted', 'Whisk 3 eggs and pour into pan', 'Add mushroom filling, fold omelette and serve']
+  },
+  {
+    name: 'Rajma (Kidney Bean Curry)',
+    calories: 380, protein: 17,
+    tags: ['veg', 'vegetarian', 'indian', 'dinner'],
+    description: 'Slow-cooked red kidney beans in rich tomato-onion gravy with spices',
+    instructions: ['Soak and pressure cook kidney beans until soft', 'Cook onion-tomato masala with bay leaf & whole spices', 'Add cooked beans and simmer on low heat', 'Garnish with cream and serve with rice']
+  },
+  {
+    name: 'Teriyaki Salmon Rice Bowl',
+    calories: 540, protein: 42,
+    tags: ['fish', 'salmon', 'bowl', 'dinner'],
+    description: 'Pan-seared Atlantic salmon with jasmine rice, edamame & sesame glaze',
+    instructions: ['Season salmon fillet with lemon & black pepper', 'Sear skin-side down in hot skillet 4 mins, flip 3 mins', 'Brush with teriyaki glaze', 'Serve over steamed rice with edamame & sesame']
+  },
+  {
+    name: 'Ribeye Steak & Sweet Potatoes',
+    calories: 620, protein: 48,
+    tags: ['beef', 'steak', 'dinner', 'high protein'],
+    description: 'Grass-fed ribeye steak with roasted sweet potato wedges & green beans',
+    instructions: ['Toss sweet potatoes in olive oil & paprika, bake at 400°F for 25 mins', 'Sear ribeye in cast-iron skillet 3-4 mins per side with garlic butter', 'Sauté green beans in pan drippings', 'Rest steak 5 minutes before serving']
+  },
+  {
+    name: 'Greek Yogurt Berry Crunch',
+    calories: 290, protein: 28,
+    tags: ['yogurt', 'breakfast', 'snack', 'vegetarian', 'veg'],
+    description: 'Whole milk Greek yogurt with fresh blueberries, honey & granola',
+    instructions: ['Scoop 1 cup plain Greek yogurt into a bowl', 'Layer with fresh blueberries and honey', 'Top with toasted almond granola & chia seeds']
+  },
+  {
+    name: 'Beef Burrito Protein Bowl',
+    calories: 580, protein: 44,
+    tags: ['beef', 'bowl', 'lunch', 'dinner'],
     description: 'Seasoned lean minced beef, black beans, brown rice, salsa & guacamole',
-    instructions: [
-      'Sauté 93/7 lean ground beef with taco spices & garlic',
-      'Warm black beans and sweet corn kernels',
-      'Base bowl with cilantro lime brown rice, seasoned beef & black beans',
-      'Top with fresh tomato salsa, chopped cilantro & guacamole'
-    ]
+    instructions: ['Sauté 93/7 lean ground beef with taco spices & garlic', 'Warm black beans and sweet corn', 'Base bowl with cilantro lime brown rice & seasoned beef', 'Top with fresh salsa & guacamole']
   },
-  { 
-    name: 'Pan-Seared Cod & Asparagus', 
-    calories: 370, 
-    protein: 40, 
-    description: 'Fresh cod fillet with lemon herb butter and roasted asparagus spears',
-    instructions: [
-      'Pat cod fillet dry and season lightly with lemon pepper seasoning',
-      'Pan-fry cod in olive oil for 3-4 mins per side until flaky',
-      'Roast fresh asparagus spears with olive oil at 400°F for 12 mins',
-      'Spoon melted lemon herb butter over cod before serving'
-    ]
+  {
+    name: 'Pan-Seared Cod & Asparagus',
+    calories: 370, protein: 40,
+    tags: ['fish', 'cod', 'dinner', 'low calorie'],
+    description: 'Fresh cod fillet with lemon herb butter and roasted asparagus',
+    instructions: ['Pat cod dry and season with lemon pepper', 'Pan-fry in olive oil 3-4 mins per side', 'Roast asparagus with olive oil at 400°F for 12 mins', 'Spoon lemon herb butter over cod']
   },
-  { 
-    name: 'Mediterranean Chicken Pasta', 
-    calories: 560, 
-    protein: 44, 
+  {
+    name: 'Tuna Poke & Quinoa Bowl',
+    calories: 430, protein: 36,
+    tags: ['fish', 'tuna', 'bowl', 'lunch'],
+    description: 'Fresh yellowfin tuna, quinoa, cucumber, mango & ponzu dressing',
+    instructions: ['Dice sushi-grade tuna into cubes', 'Toss with soy sauce, sesame oil & green onion', 'Assemble over cooked quinoa with cucumber & mango', 'Drizzle with ponzu sauce']
+  },
+  {
+    name: 'Cottage Cheese Oat Pancakes',
+    calories: 380, protein: 30,
+    tags: ['vegetarian', 'veg', 'breakfast', 'oats'],
+    description: 'High-protein oat pancakes topped with banana & maple syrup',
+    instructions: ['Blend 1/2 cup cottage cheese, 1/2 cup oats, 2 eggs & vanilla', 'Pour batter onto hot greased griddle', 'Cook until bubbles form, flip until golden', 'Top with banana slices and maple syrup']
+  },
+  {
+    name: 'Mediterranean Chicken Pasta',
+    calories: 560, protein: 44,
+    tags: ['chicken', 'pasta', 'lunch', 'dinner'],
     description: 'Whole wheat penne, grilled chicken, cherry tomatoes & kalamata olives',
-    instructions: [
-      'Boil whole wheat penne until al dente',
-      'Sauté diced grilled chicken breast with garlic & cherry tomatoes in olive oil',
-      'Toss pasta with chicken, tomatoes, sliced kalamata olives & fresh basil',
-      'Garnish with grated parmesan cheese'
-    ]
+    instructions: ['Boil whole wheat penne until al dente', 'Sauté chicken with garlic & cherry tomatoes', 'Toss pasta with chicken, olives & fresh basil', 'Garnish with parmesan']
+  },
+  {
+    name: 'Aloo Gobi (Potato & Cauliflower)',
+    calories: 290, protein: 8,
+    tags: ['veg', 'vegetarian', 'indian', 'dinner'],
+    description: 'Dry-spiced potato and cauliflower with mustard seeds and turmeric',
+    instructions: ['Heat oil, add mustard seeds and cumin till they splutter', 'Add diced potato & cauliflower florets', 'Cook with turmeric, coriander, garam masala & salt', 'Cover and cook on low till tender, garnish with coriander']
+  },
+  {
+    name: 'Egg Curry',
+    calories: 370, protein: 26,
+    tags: ['egg', 'eggs', 'indian', 'curry', 'dinner'],
+    description: 'Hard boiled eggs in spiced onion-tomato gravy with coconut milk',
+    instructions: ['Hard boil eggs, peel and shallow fry till golden', 'Make thick masala with onion, tomato & spices', 'Add eggs to masala and simmer 8 mins', 'Finish with coconut milk and fresh coriander']
+  },
+  {
+    name: 'Chicken Salad with Quinoa',
+    calories: 420, protein: 40,
+    tags: ['chicken', 'salad', 'lunch', 'high protein'],
+    description: 'Shredded grilled chicken with quinoa, avocado, cucumber & lemon dressing',
+    instructions: ['Cook quinoa and let cool', 'Shred grilled chicken breast', 'Combine with diced avocado, cucumber & cherry tomatoes', 'Dress with lemon olive oil vinaigrette']
   }
 ]
 
@@ -440,14 +502,17 @@ function getRandomMealSelection(count = 6, query = '') {
   let list = [...REAL_MEAL_DATABASE]
   if (query && typeof query === 'string' && query.trim()) {
     const q = query.toLowerCase().trim()
-    const filtered = list.filter((m) =>
+    // First try matching tags (exact keyword categories like 'egg', 'chicken', 'veg')
+    const tagMatched = list.filter((m) => Array.isArray(m.tags) && m.tags.some((t) => t.includes(q) || q.includes(t)))
+    // Then try full-text search across name, description, instructions
+    const textMatched = list.filter((m) =>
       m.name.toLowerCase().includes(q) ||
       m.description.toLowerCase().includes(q) ||
       (Array.isArray(m.instructions) && m.instructions.some((i) => i.toLowerCase().includes(q)))
     )
-    if (filtered.length > 0) {
-      list = filtered
-    }
+    // Merge: tag matches first, then text matches, deduplicated
+    const merged = [...new Map([...tagMatched, ...textMatched].map((m) => [m.name, m])).values()]
+    if (merged.length > 0) list = merged
   }
   const shuffled = [...list].sort(() => 0.5 - Math.random())
   return shuffled.slice(0, count)
@@ -483,36 +548,35 @@ function getRandomMealSelection(count = 6, query = '') {
     const remainingCalories = Math.max(CALORIE_GOAL - totals.calories, 0)
     const remainingProtein = Math.max(PROTEIN_GOAL - totals.protein, 0)
 
-    const prompt = `Create ${AI_MEAL_LIMIT} different delicious ${mealType} food options for a user with fitness goal ${userGoal.replace('_', ' ')}.
-Daily targets remaining: calories left: ${Math.round(remainingCalories)}, protein left: ${Math.round(remainingProtein)}.
-${customRequest ? `User preference / search filter: MUST include or focus on ${customRequest}` : ''}
-Make meals sound delicious, natural, and realistic. Random seed: ${Date.now()}.
-Return ONLY valid JSON array:
-[{"name": "Meal Name", "calories": 430, "protein": 32, "description": "Short appetizing description", "instructions": ["Step 1", "Step 2", "Step 3"]}]`
+    const systemPrompt = `You are a professional nutritionist AI. When the user provides a food keyword or ingredient, generate meal suggestions STRICTLY based on that keyword. If they say "chicken", all meals must be chicken-based. If they say "egg", all meals must be egg-based. If they say "veg" or "vegetarian", all meals must be vegetarian. Always include Indian and international options. Return ONLY valid JSON array, no extra text:
+[{"name": "Meal Name", "calories": 430, "protein": 32, "description": "Short appetizing description (1 line)", "instructions": ["Step 1", "Step 2", "Step 3", "Step 4"]}]`
+
+    const userMessage = `Create 6 different delicious ${mealType} options.
+Fitness goal: ${userGoal.replace('_', ' ')}.
+Calories remaining today: ${Math.round(remainingCalories)} kcal. Protein remaining: ${Math.round(remainingProtein)}g.
+${customRequest ? `KEYWORD/INGREDIENT (MUST use this in ALL meals): "${customRequest}"` : 'Suggest a balanced variety of meals.'}
+Make them realistic, nutritious and varied. Random seed: ${Date.now()}.`
 
     try {
-      const rawText = await generateWithAI(prompt, 'meal')
+      const data = await sendAIMessage([
+        { role: 'user', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ])
+      const rawText = data?.choices?.[0]?.message?.content
+      if (!rawText) throw new Error('No response from AI')
+
       const jsonMatch = String(rawText).match(/\[[\s\S]*\]/)
       const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawText)
       const normalized = normalizeAIMeals(parsed)
 
       if (normalized.length > 0) {
-        let filtered = normalized
-        if (customRequest && customRequest.trim()) {
-          const q = customRequest.toLowerCase().trim()
-          const matched = normalized.filter((m) =>
-            m.name.toLowerCase().includes(q) ||
-            m.description.toLowerCase().includes(q)
-          )
-          if (matched.length > 0) filtered = matched
-        }
-        const shuffled = filtered.sort(() => 0.5 - Math.random()).slice(0, 6)
+        const shuffled = normalized.sort(() => 0.5 - Math.random()).slice(0, 6)
         setAiSuggestions(shuffled)
       } else {
         throw new Error('No valid meals returned')
       }
     } catch (err) {
-      console.warn('Using dynamic real-world meal shuffle with query:', err)
+      console.warn('AI failed, using keyword-smart local database:', err)
       setAiSuggestions(getRandomMealSelection(6, customRequest))
     } finally {
       setShowAISuggestions(true)

@@ -1,12 +1,6 @@
 // src/utils/ai.js
-// ✅ Using GROQ API - 14,400 requests/day FREE!
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY
+import { sendAIMessage } from '../services/api'
 
-if (!GROQ_API_KEY) {
-  console.warn('AI utility running in fallback mode: VITE_GROQ_API_KEY not found')
-}
-
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 // ============================================================
 // FALLBACK DATA (used only when API fails)
@@ -205,51 +199,25 @@ const FALLBACK_MEALS = {
 }
 
 // ============================================================
-// MAIN GROQ API FUNCTION (for WorkoutPlanGenerator, DietTracker)
+// MAIN AI FUNCTION (uses secure backend proxy)
 // ============================================================
 export const generateWithAI = async (prompt, type = 'workout') => {
-  console.log(`🤖 Calling Groq API (type: ${type})...`)
-
-  if (!GROQ_API_KEY) {
-    console.warn('GROQ_API_KEY missing, using local fallback response')
-    return fallbackResponse(prompt, type)
-  }
+  console.log(`🤖 Calling AI via backend proxy (type: ${type})...`)
 
   try {
-    const response = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-oss-20b',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-        max_tokens: 2048,
-      })
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      console.error('❌ Groq API error:', err?.error?.message || response.status)
-      return fallbackResponse(prompt, type)
-    }
-
-    const data = await response.json()
+    const data = await sendAIMessage([{ role: 'user', content: prompt }])
     const text = data?.choices?.[0]?.message?.content
 
     if (!text) {
-      console.error('❌ No text in Groq response')
+      console.warn('⚠️ No text in AI response, using fallback')
       return fallbackResponse(prompt, type)
     }
 
     const cleaned = text.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim()
-    console.log('✅ Groq responded successfully')
+    console.log('✅ AI proxy responded successfully')
     return cleaned
-
   } catch (error) {
-    console.error('❌ Groq fetch failed:', error.message)
+    console.warn('⚠️ AI proxy failed, using fallback:', error.message)
     return fallbackResponse(prompt, type)
   }
 }

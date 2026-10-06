@@ -53,7 +53,7 @@ function ProfilePage() {
     try {
       const saved = JSON.parse(localStorage.getItem('profileNotificationSettings') || 'null')
       if (saved) return saved
-    } catch (_e) {
+    } catch {
       // ignore
     }
     return {
@@ -84,7 +84,7 @@ function ProfilePage() {
           }))
           setTwoFactorEnabled(Boolean(user.twoFactorEnabled))
         }
-      } catch (_e) {
+      } catch {
         // ignore
       }
       setLoading(false)
@@ -125,7 +125,7 @@ function ProfilePage() {
             setProfileData(merged)
             setTempData(merged)
           }
-        } catch (_e) {
+        } catch {
           // ignore
         }
       })
@@ -239,7 +239,7 @@ function ProfilePage() {
         } else {
           toast.success(`Profile saved! Daily: ${goalCals} kcal, ${proteinVal}g protein.`)
         }
-      } catch (_e) {
+      } catch {
         toast.success(`Profile saved! Daily: ${goalCals} kcal, ${proteinVal}g protein.`)
       }
     } else {

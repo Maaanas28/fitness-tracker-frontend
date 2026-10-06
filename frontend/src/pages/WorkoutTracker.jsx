@@ -38,7 +38,6 @@ function WorkoutTracker() {
   // Modals & Panels state
   const [activeTab, setActiveTab] = useState('today') // 'today' | 'history' | 'templates'
   const [showAddTerminal, setShowAddTerminal] = useState(false)
-  const [showTemplates, setShowTemplates] = useState(false)
   const [showCreateTemplate, setShowCreateTemplate] = useState(false)
   const [newTemplateName, setNewTemplateName] = useState('')
   const [showNoteModal, setShowNoteModal] = useState(null) // { exerciseId, setIndex }
@@ -54,7 +53,7 @@ function WorkoutTracker() {
     if (saved) {
       try {
         return JSON.parse(saved)
-      } catch (_e) {
+      } catch {
         return []
       }
     }
@@ -67,7 +66,7 @@ function WorkoutTracker() {
     if (saved) {
       try {
         return JSON.parse(saved)
-      } catch (_e) {
+      } catch {
         return []
       }
     }
@@ -329,7 +328,7 @@ function WorkoutTracker() {
       }))
     }))
     setCurrentWorkout(loaded)
-    setShowTemplates(false)
+    setActiveTab('today')
     toast.success(`Loaded template: ${template.name}!`)
   }
 
