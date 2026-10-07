@@ -611,8 +611,20 @@ function LandingPage() {
   const navigate = useNavigate()
 
   const handleNavigation = useCallback((path, options) => {
-    navigate(path, options)
+    // If user is not logged in, auto-seed demo token so all features work directly from landing
+    if (!localStorage.getItem('token') || localStorage.getItem('token') === 'null') {
+      localStorage.setItem('token', 'demo-token-skip-auth')
+      localStorage.setItem('user', JSON.stringify({
+        id: 'demo-user',
+        name: 'Demo User',
+        email: 'demo@fittracker.app',
+        profileData: {}
+      }))
+    }
+    const targetPath = path === '/login' ? '/dashboard' : path
+    navigate(targetPath, options)
   }, [navigate])
+
 
   return (
     <div className="bg-black text-white min-h-screen selection:bg-cyan-500 selection:text-black font-sans overflow-x-hidden relative">
