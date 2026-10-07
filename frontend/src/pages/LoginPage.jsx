@@ -509,7 +509,6 @@ function LoginPage() {
           </button>
           <button 
             onClick={() => {
-              setWarpState('forward')
               clearUserData()
               localStorage.setItem('token', 'demo-token-skip-auth')
               localStorage.setItem('user', JSON.stringify({
@@ -519,9 +518,9 @@ function LoginPage() {
                 profileData: {}
               }))
               toast.success('Entered demo mode')
-              setTimeout(() => navigate('/dashboard'), 400)
+              navigate('/dashboard', { replace: true })
             }} 
-            className="hover:text-cyan-400 transition-colors"
+            className="hover:text-cyan-400 transition-colors cursor-pointer"
           >
             SKIP AUTH
           </button>

@@ -152,8 +152,10 @@ export const disable2FA = async (token) => {
 }
 
 export const isAuthenticated = () => {
-  return !!getToken()
+  const t = localStorage.getItem('token')
+  return !!t && t !== 'null' && t !== 'undefined'
 }
+
 
 // ============================================================
 // WORKOUTS
